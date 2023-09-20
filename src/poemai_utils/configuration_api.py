@@ -1,0 +1,2 @@
+class ConfigurationAPI:
+    pass
