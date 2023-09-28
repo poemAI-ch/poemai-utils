@@ -32,15 +32,31 @@ class EmbeddingStore:
     def query_by_text(self, query, k=5):
         if self.embedding_matrix is None:
             return []
-        query_embedding = self._create_embedding(query)
-        scores = self.embedding_matrix.dot(query_embedding)
+        query_embedding = self._create_embedding(query, is_query=True)
+        embedding_matrix = self._scaled_embedding_matrix()
+
+        scores = embedding_matrix.dot(query_embedding)
         idxs = np.argsort(scores)[-k:][::-1]
 
         return [(self.texts[i], scores[i], i) for i in idxs]
 
+    def _scaled_embedding_matrix(self):
+        if self.embedding_matrix is None:
+            return None
+        if self.embedder.use_cosine_similarity:
+            return self.embedding_matrix / np.linalg.norm(
+                self.embedding_matrix, ord=2, axis=1, keepdims=True
+            )
+        else:
+            return self.embedding_matrix
+
     def query_by_embedding(self, query_embedding, k=5):
         if self.embedding_matrix is None:
             return []
+
+        embedding_matrix = self._scaled_embedding_matrix()
+        scores = embedding_matrix.dot(query_embedding)
+
         scores = self.embedding_matrix.dot(query_embedding)
         idxs = np.argsort(scores)[-k:][::-1]
 
@@ -58,3 +74,12 @@ class EmbeddingStore:
             self.embedding_cache.put(text, embedding, self.embedder.model_name)
 
         return embedding
+
+    def similarity(self, index_1, index_2):
+        if self.embedding_matrix is None:
+            return None
+
+        embedding_matrix = self._scaled_embedding_matrix()
+
+        score = embedding_matrix[index_1].dot(embedding_matrix[index_2])
+        return score

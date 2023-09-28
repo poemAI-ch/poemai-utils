@@ -23,7 +23,8 @@ class SelfSimilarityAnalyzer:
     def query(self, query, k=5):
         top_k = self.embedding_store.query_by_text(query, k)
         return [
-            (text_id, score, self.metadata.get(text_id)) for _, score, text_id in top_k
+            (int(text_id), float(score), self.metadata.get(text_id))
+            for _, score, text_id in top_k
         ]
 
     @staticmethod
