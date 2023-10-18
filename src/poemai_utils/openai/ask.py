@@ -7,11 +7,11 @@ import openai
 import sqlitedict
 from poemai_utils.openai.llm_answer_cache import LLMAnswerCache
 from poemai_utils.openai.openai_model import API_TYPE, OPENAI_MODEL
-from poemai_utils.utils_config import config_by_key
+from poemai_utils.utils_config import get_config_by_key
 
 _logger = logging.getLogger(__name__)
 
-DISABLE_GPT_LOG = config_by_key("DISABLE_GPT_LOG")
+DISABLE_GPT_LOG = get_config_by_key("DISABLE_GPT_LOG")
 
 
 def current_unix_time():
