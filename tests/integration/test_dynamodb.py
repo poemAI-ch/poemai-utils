@@ -2,7 +2,7 @@ import logging
 from types import SimpleNamespace
 
 import pytest
-from poemai_vectorizer.dynamodb import DynamoDB
+from poemai_utils.aws.dynamodb import DynamoDB
 
 _logger = logging.getLogger(__name__)
 

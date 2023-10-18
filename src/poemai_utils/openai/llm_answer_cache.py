@@ -2,7 +2,7 @@ import hashlib
 import json
 from decimal import Decimal
 
-from poemai_vectorizer.llm_answer_cache_dao import LLMAnswerCacheDao
+from poemai_utils.openai.llm_answer_cache_dao import LLMAnswerCacheDao
 
 
 class LLMAnswerCache:
