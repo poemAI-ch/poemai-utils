@@ -5,10 +5,10 @@ from pathlib import Path
 import httpx
 import openai
 import sqlitedict
+from poemai_utils.basic_types_utils import linebreak, short_display
 from poemai_utils.openai.llm_answer_cache import LLMAnswerCache
 from poemai_utils.openai.openai_model import API_TYPE, OPENAI_MODEL
 from poemai_utils.utils_config import get_config_by_key
-from poemai_utils.basic_types_utils import short_display, linebreak
 
 _logger = logging.getLogger(__name__)
 
@@ -75,8 +75,13 @@ class Ask:
         else:
             self.async_openai = async_openai
 
-    def set_model(self, model):
-        self.model = model
+    def count_tokens(self, text):
+        import tiktoken  # only needed if you want to count tokens
+
+        """Returns the number of tokens in a text string."""
+        encoding = tiktoken.get_encoding("cl100k_base")
+        num_tokens = len(encoding.encode(text))
+        return num_tokens
 
     def ask_chat(
         self,

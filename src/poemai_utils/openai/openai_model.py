@@ -10,6 +10,7 @@ class OPENAI_MODEL(str, Enum):
     GPT_3_5_TURBO_16k = "gpt_3_5_turbo_16k"
     ADA_002_EMBEDDING = "ada_002_embedding"
 
+
 add_enum_repr_attr(OPENAI_MODEL)
 
 
