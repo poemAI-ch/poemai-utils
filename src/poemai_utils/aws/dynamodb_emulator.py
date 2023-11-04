@@ -1,5 +1,7 @@
 import copy
+import threading
 
+from poemai_utils.aws.dynamodb import VersionMismatchException
 from sqlitedict import SqliteDict
 
 
@@ -7,6 +9,7 @@ class DynamoDBEmulator:
     def __init__(self, sqlite_filename):
         self.data_table = SqliteDict(sqlite_filename, tablename="data")
         self.index_table = SqliteDict(sqlite_filename, tablename="index")
+        self.lock = threading.Lock()
 
     def _get_composite_key(self, table_name, pk, sk):
         return f"{table_name}___##___{pk}___##___{sk}"
@@ -18,22 +21,65 @@ class DynamoDBEmulator:
     def _get_index_key(self, table_name, pk):
         return f"{table_name}#{pk}"
 
+    def get_all_items(self):
+        for k, v in self.data_table.items():
+            pk, sk = self._get_pk_sk_from_composite_key(k)
+
+            yield {"pk": pk, "sk": sk, **v}
+
     def store_item(self, table_name, item):
-        pk = item["pk"]
-        sk = item["sk"]
+        with self.lock:
+            pk = item["pk"]
+            sk = item["sk"]
 
-        composite_key = self._get_composite_key(table_name, pk, sk)
+            composite_key = self._get_composite_key(table_name, pk, sk)
 
-        # Store the item
-        self.data_table[composite_key] = item
-        self.data_table.commit()
+            # Store the item
+            self.data_table[composite_key] = item
+            self.data_table.commit()
 
-        index_key = self._get_index_key(table_name, pk)
-        index_list = self.index_table.get(index_key, [])
+            index_key = self._get_index_key(table_name, pk)
+            index_list = self.index_table.get(index_key, [])
 
-        index_list.append(composite_key)
-        self.index_table[index_key] = sorted(index_list)  # Sort the index list
-        self.index_table.commit()
+            index_list.append(composite_key)
+            self.index_table[index_key] = sorted(index_list)  # Sort the index list
+            self.index_table.commit()
+
+    def update_versioned_item_by_pk_sk(
+        self,
+        table_name,
+        pk,
+        sk,
+        attribute_updates,
+        expected_version,
+        version_attribute_name="version",
+    ):
+        with self.lock:
+            composite_key = self._get_composite_key(table_name, pk, sk)
+            item = self.data_table.get(composite_key)
+
+            # If the item does not exist, we cannot update it
+            if item is None:
+                raise KeyError(f"Item with pk:{pk} and sk:{sk} does not exist.")
+
+            # Check for version mismatch
+            if item.get(version_attribute_name, 0) != expected_version:
+                raise VersionMismatchException(
+                    f"Version mismatch for item {pk}:{sk}. "
+                    f"Current version: {item.get(version_attribute_name, 0)}, "
+                    f"expected: {expected_version}."
+                )
+
+            # Update the item's attributes
+            for attr, value in attribute_updates.items():
+                item[attr] = value
+
+            # Update the version
+            item[version_attribute_name] = expected_version + 1
+
+            # Store the updated item
+            self.data_table[composite_key] = item
+            self.data_table.commit()
 
     def get_item_by_pk_sk(self, table_name, pk, sk):
         composite_key = self._get_composite_key(table_name, pk, sk)

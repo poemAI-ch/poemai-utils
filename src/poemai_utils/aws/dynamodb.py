@@ -4,6 +4,7 @@ from decimal import Clamped, Context, Inexact, Overflow, Rounded, Underflow
 
 import boto3
 from boto3.dynamodb.types import TypeDeserializer, TypeSerializer
+from botocore.exceptions import ClientError
 
 _logger = logging.getLogger(__name__)
 
@@ -31,6 +32,10 @@ DYNAMODB_CONTEXT_POEMAI = Context(
     traps=[Clamped, Overflow, Inexact, Rounded, Underflow],
 )
 BINARY_TYPES = (bytearray, bytes)
+
+
+class VersionMismatchException(Exception):
+    pass
 
 
 class BinaryPoemai:
@@ -170,6 +175,68 @@ class DynamoDB:
             _logger.error(f"Error storing item {item}, response: {response}")
         else:
             _logger.debug(f"Stored item {item}, response: {response}")
+
+    def update_versioned_item_by_pk_sk(
+        self,
+        table_name,
+        pk,
+        sk,
+        attribute_updates,
+        expected_version,
+        version_attribute_name="version",
+    ):
+        # Build the update expression
+        set_expressions = []
+        expression_attribute_values = {":expectedVersion": {"N": str(expected_version)}}
+
+        # Increment the version
+        set_expressions.append(f"#{version_attribute_name} = :newVersion")
+        expression_attribute_values[":newVersion"] = {"N": str(expected_version + 1)}
+
+        # Add other attributes to the update expression
+        for attr, value in attribute_updates.items():
+            placeholder = f":{attr}"
+            set_expressions.append(f"#{attr} = {placeholder}")
+            expression_attribute_values[
+                placeholder
+            ] = self.ddb_type_serializer.serialize(value)
+
+        update_expression = "SET " + ", ".join(set_expressions)
+        expression_attribute_names = {
+            f"#{attr}": attr for attr in attribute_updates.keys()
+        }
+        expression_attribute_names[
+            f"#{version_attribute_name}"
+        ] = version_attribute_name
+
+        try:
+            # Perform a conditional update
+            response = self.dynamodb_client.update_item(
+                TableName=table_name,
+                Key={"pk": {"S": pk}, "sk": {"S": sk}},
+                UpdateExpression=update_expression,
+                ExpressionAttributeNames=expression_attribute_names,
+                ExpressionAttributeValues=expression_attribute_values,
+                ConditionExpression=f"#{version_attribute_name} = :expectedVersion",
+                ReturnValues="UPDATED_NEW",
+            )
+            _logger.debug(
+                f"Updated item {pk}:{sk} in table {table_name}, response: {response}"
+            )
+            return response
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                _logger.error(
+                    f"Update failed: Optimistic lock failed, version mismatch for item {pk}:{sk}, expected {expected_version}"
+                )
+                raise VersionMismatchException(
+                    f"Version mismatch updating {pk}:{sk}, expecting {expected_version}"
+                ) from e
+            else:
+                _logger.error(
+                    f"Update failed for item {pk}:{sk}, response: {e.response}"
+                )
+                raise
 
     def put_item(self, TableName, Item):
         """A proxy for boto3.dynamodb.table.put_item"""

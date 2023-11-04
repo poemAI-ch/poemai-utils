@@ -1,3 +1,5 @@
+import pytest
+from poemai_utils.aws.dynamodb import VersionMismatchException
 from poemai_utils.aws.dynamodb_emulator import DynamoDBEmulator
 
 
@@ -50,3 +52,26 @@ def test_db(tmp_path):
         {"pk": "pk2", "sk": "sk2", "data": "data3"},
     ]
     assert db.get_item_by_pk_sk(TABLE_NAME, "pk1", "sk1") is None
+
+    db.update_versioned_item_by_pk_sk(TABLE_NAME, "pk1", "sk2", {"data": "data4"}, 0)
+
+    assert db.get_item_by_pk_sk(TABLE_NAME, "pk1", "sk2") == {
+        "pk": "pk1",
+        "sk": "sk2",
+        "data": "data4",
+        "version": 1,
+    }
+
+    db.update_versioned_item_by_pk_sk(TABLE_NAME, "pk1", "sk2", {"data": "data5"}, 1)
+
+    assert db.get_item_by_pk_sk(TABLE_NAME, "pk1", "sk2") == {
+        "pk": "pk1",
+        "sk": "sk2",
+        "data": "data5",
+        "version": 2,
+    }
+
+    with pytest.raises(VersionMismatchException):
+        db.update_versioned_item_by_pk_sk(
+            TABLE_NAME, "pk1", "sk2", {"data": "data6"}, 1
+        )

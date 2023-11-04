@@ -301,3 +301,31 @@ def test_batch_write(ddb: DynamoDB):
 
     for item in items_to_store:
         assert ddb.get_item_by_pk_sk(TEST_TABLE_NAME, item["pk"], item["sk"]) == item
+
+
+def test_update_versioned_item(ddb: DynamoDB):
+    item_to_store = {"pk": "pk7799", "sk": "sk2299", "version": 0, "data": "data1"}
+    ddb.store_item(TEST_TABLE_NAME, item_to_store)
+
+    ddb.update_versioned_item_by_pk_sk(
+        TEST_TABLE_NAME,
+        item_to_store["pk"],
+        item_to_store["sk"],
+        {"data": "data2"},
+        expected_version=0,
+    )
+
+    assert ddb.get_item_by_pk_sk(
+        TEST_TABLE_NAME, item_to_store["pk"], item_to_store["sk"]
+    ) == {"pk": "pk7799", "sk": "sk2299", "version": 1, "data": "data2"}
+
+    from poemai_utils.aws.dynamodb import VersionMismatchException
+
+    with pytest.raises(VersionMismatchException):
+        ddb.update_versioned_item_by_pk_sk(
+            TEST_TABLE_NAME,
+            item_to_store["pk"],
+            item_to_store["sk"],
+            {"data": "data3"},
+            expected_version=0,
+        )
