@@ -5,7 +5,10 @@ from poemai_utils.enum_utils import add_enum_attrs, add_enum_repr, add_enum_repr
 
 class OPENAI_MODEL(str, Enum):
     GPT_4 = "gpt_4"
+    GPT_4_TURBO = "gpt_4_turbo"
+    GPT_4_TURBO_1106_PREVIEW = "gpt_4_turbo_1106_preview"
     GPT_3_5_TURBO = "gpt_3_5_turbo"
+    GPT_3_5_TURBO_1106 = "gpt-3.5-turbo-1106"
     GPT_3_5_TURBO_0613 = "gpt_3_5_turbo_0613"
     GPT_3_5_TURBO_16k = "gpt_3_5_turbo_16k"
     ADA_002_EMBEDDING = "ada_002_embedding"
@@ -30,8 +33,23 @@ add_enum_attrs(
             "api_types": [API_TYPE.CHAT_COMPLETIONS],
             "expensive": True,
         },
+        OPENAI_MODEL.GPT_4_TURBO: {
+            "model_key": "gpt-4-1106-preview",
+            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "expensive": True,
+        },
+        OPENAI_MODEL.GPT_4_TURBO_1106_PREVIEW: {
+            "model_key": "gpt-4-1106-preview",
+            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "expensive": True,
+        },
         OPENAI_MODEL.GPT_3_5_TURBO: {
             "model_key": "gpt-3.5-turbo",
+            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "expensive": False,
+        },
+        OPENAI_MODEL.GPT_3_5_TURBO_1106: {
+            "model_key": "gpt-3.5-turbo-1106",
             "api_types": [API_TYPE.CHAT_COMPLETIONS],
             "expensive": False,
         },
