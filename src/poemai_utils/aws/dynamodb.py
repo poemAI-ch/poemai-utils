@@ -267,6 +267,14 @@ class DynamoDB:
         else:
             return None
 
+    def batch_get_items_by_pk_sk(self, table_name, pk_sk_list):
+        db_keys = [{"pk": i["pk"], "sk": i["sk"]} for i in pk_sk_list]
+        if len(db_keys) == 0:
+            return []
+        response = self.batch_get_item(RequestItems={table_name: {"Keys": db_keys}})
+        for item in response["Responses"][table_name]:
+            yield self.item_to_dict(item)
+
     def get_item_by_pk(self, table_name, pk):
         response = self.get_item(
             TableName=table_name,
@@ -287,25 +295,15 @@ class DynamoDB:
         projection_expression=None,
     ):
         paginator = self.dynamodb_client.get_paginator("scan")
+        args = {"TableName": table_name}
+        if filter_expression is not None:
+            args["FilterExpression"] = filter_expression
+        if expression_attribute_values is not None:
+            args["ExpressionAttributeValues"] = expression_attribute_values
         if projection_expression is not None:
-            page_iterator = paginator.paginate(
-                TableName=table_name,
-                FilterExpression=filter_expression,
-                ExpressionAttributeValues=expression_attribute_values,
-                ProjectionExpression=projection_expression,
-            )
-        else:
-            page_iterator = paginator.paginate(
-                TableName=table_name,
-                FilterExpression=filter_expression,
-                ExpressionAttributeValues=expression_attribute_values,
-            )
+            args["ProjectionExpression"] = projection_expression
+        page_iterator = paginator.paginate(**args)
 
-        page_iterator = paginator.paginate(
-            TableName=table_name,
-            FilterExpression=filter_expression,
-            ExpressionAttributeValues=expression_attribute_values,
-        )
         for page in page_iterator:
             for item in page["Items"]:
                 yield self.item_to_dict(item)
@@ -413,14 +411,24 @@ class DynamoDB:
 
         return response
 
-    def query(self, TableName, KeyConditionExpression, ExpressionAttributeValues):
+    def query(
+        self,
+        TableName,
+        KeyConditionExpression,
+        ExpressionAttributeValues,
+        ProjectionExpression=None,
+    ):
         """A proxy for boto3.dynamodb.table.query"""
 
-        response = self.dynamodb_client.query(
-            TableName=TableName,
-            KeyConditionExpression=KeyConditionExpression,
-            ExpressionAttributeValues=ExpressionAttributeValues,
-        )
+        args = {"TableName": TableName}
+        if KeyConditionExpression is not None:
+            args["KeyConditionExpression"] = KeyConditionExpression
+        if ExpressionAttributeValues is not None:
+            args["ExpressionAttributeValues"] = ExpressionAttributeValues
+        if ProjectionExpression is not None:
+            args["ProjectionExpression"] = ProjectionExpression
+
+        response = self.dynamodb_client.query(**args)
 
         # check response for errors
         if response["ResponseMetadata"]["HTTPStatusCode"] != 200:

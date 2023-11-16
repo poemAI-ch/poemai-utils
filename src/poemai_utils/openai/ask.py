@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 from pathlib import Path
@@ -41,6 +42,15 @@ class Ask:
         disable_prompt_log=None,
         async_openai=None,
     ):
+        try:
+            from openai import OpenAI
+        except ImportError:
+            raise ImportError(
+                "You must install openai to use this function. Try: pip install openai"
+            )
+
+        self.client = OpenAI()
+
         self.model = model
         home = str(Path.home())
 
@@ -99,14 +109,22 @@ class Ask:
         message_list = self._calculate_messages_for_chat(
             prompt, system_prompt, messages
         )
+        args = {}
+        if stop is not None:
+            args["stop"] = stop
+
         try:
-            response = self._openai.ChatCompletion.create(
-                messages=message_list,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                model=self.model.model_key,
-                stop=stop,
-            )["choices"][0]["message"]["content"].strip(" \n")
+            response = (
+                self.client.chat.completions.create(
+                    messages=message_list,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    model=self.model.model_key,
+                    *args,
+                )
+                .choices[0]
+                .message.content
+            )
         except Exception as e:
             _logger.error(e)
             raise e
@@ -144,7 +162,7 @@ class Ask:
         if API_TYPE.COMPLETIONS not in self.model.api_types:
             raise ValueError(f"Model {self.model} does not support completions")
         try:
-            response = self._openai.Completion.create(
+            response = self.client.completions.create(
                 prompt=prompt,
                 temperature=temperature,
                 max_tokens=max_tokens,
@@ -247,6 +265,61 @@ class Ask:
             }
 
         return answer
+
+    def ask_with_images(
+        self,
+        prompt,
+        image_paths,
+        detail="high",
+        temperature=0,
+        max_tokens=600,
+        stop=None,
+        suffix=None,
+        system_prompt=None,
+        metadata=None,
+    ):
+        if not self.model.supports_vision:
+            raise ValueError(f"Model {self.model} does not support vision")
+
+        if metadata is None:
+            metadata = {}
+        if prompt is None and messages is None:
+            raise ValueError("prompt or messages must be provided")
+        answer = None
+
+        prompt_message = {"role": "user", "content": [{"type": "text", "text": prompt}]}
+
+        for image_path in image_paths:
+            base64_image = self.encode_image(image_path)
+
+            prompt_message["content"].append(
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": f"data:image/jpeg;base64,{base64_image}",
+                        "detail": detail,
+                    },
+                }
+            )
+
+        messages = [prompt_message]
+
+        answer = self.ask_chat(
+            prompt,
+            temperature,
+            max_tokens,
+            stop,
+            suffix,
+            system_prompt,
+            messages,
+        )
+
+        return answer
+
+    @staticmethod
+    def encode_image(image_path):
+        with open(image_path, "rb") as image_file:
+            return base64.b64encode(image_file.read()).decode("utf-8")
 
     async def ask_async(
         self,

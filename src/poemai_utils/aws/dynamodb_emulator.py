@@ -30,7 +30,7 @@ class DynamoDBEmulator:
     def store_item(self, table_name, item):
         with self.lock:
             pk = item["pk"]
-            sk = item["sk"]
+            sk = item.get("sk", "")
 
             composite_key = self._get_composite_key(table_name, pk, sk)
 
@@ -88,6 +88,13 @@ class DynamoDBEmulator:
         if retval:
             retval["pk"] = pk
             retval["sk"] = sk
+        return retval
+
+    def get_item_by_pk(self, table_name, pk):
+        composite_key = self._get_composite_key(table_name, pk, "")
+        retval = self.data_table.get(composite_key, None)
+        if retval:
+            retval["pk"] = pk
         return retval
 
     def get_paginated_items_by_pk(self, table_name, pk, limit=None):

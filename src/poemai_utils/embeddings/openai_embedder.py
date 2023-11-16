@@ -1,16 +1,23 @@
 import numpy as np
-import openai
 from poemai_utils.embeddings.embedder_base import EbedderBase
 
 
 class OpenAIEmbedder(EbedderBase):
     def __init__(self, model_name="text-embedding-ada-002"):
+        try:
+            from openai import OpenAI
+        except ImportError:
+            raise ImportError(
+                "You must install openai to use this function. Try: pip install openai"
+            )
+
         super().__init__()
 
         self.model_name = model_name
+        self.client = OpenAI()
 
     def calc_embedding(self, text, is_query: bool = False):
-        response = openai.Embedding.create(input=text, model=self.model_name)
-        embedding = response["data"][0]["embedding"]
+        response = self.client.embeddings.create(input=text, model=self.model_name)
+        embedding = response.data[0].embedding
         embedding = np.array(embedding, dtype=np.float32)
         return embedding

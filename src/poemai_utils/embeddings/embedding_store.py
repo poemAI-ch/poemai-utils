@@ -1,6 +1,7 @@
 from hashlib import sha256
 
 import numpy as np
+from poemai_utils.embeddings.embedding_cache import EmbeddingCache
 
 
 class EmbeddingStore:
@@ -10,6 +11,9 @@ class EmbeddingStore:
         self.texts = []
         self.embedding_matrix = None
         self.embedding_cache = embedding_cache
+        if self.embedding_cache is not None:
+            if not isinstance(self.embedding_cache, EmbeddingCache):
+                raise ValueError("embedding_cache must be an EmbeddingCache object")
 
     def _store_embedding(self, embedding):
         if self.embedding_matrix is None:
