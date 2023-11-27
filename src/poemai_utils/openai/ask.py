@@ -49,34 +49,29 @@ class Ask:
                 "You must install openai to use this function. Try: pip install openai"
             )
 
-        self.client = OpenAI()
-
-        self.model = model
-        home = str(Path.home())
-
         if openai_api_key is None:
+            home = str(Path.home())
             with open(home + "/openai_api_key.txt", "r") as f:
                 self._openai_api_key = f.read().strip()
 
         else:
             self._openai_api_key = openai_api_key
 
+        if openai_api_key is not None:
+            self.client = OpenAI(api_key=self._openai_api_key)
+        else:
+            self.client = OpenAI()
+
+        self.model = model
         openai.api_key = self._openai_api_key
 
-        # create persistent log using sqlitedict
-        if gpt_log is None:
-            self.gpt_log = sqlitedict.SqliteDict(log_file, autocommit=True)
-        else:
-            self.gpt_log = gpt_log
+        self.gpt_log = gpt_log
 
         self.llm_answer_cache = llm_answer_cache
         self._openai = openai
         self.raise_on_cache_miss = raise_on_cache_miss
 
-        if disable_prompt_log is not None and disable_prompt_log:
-            self.disable_prompt_log = True
-        else:
-            self.disable_prompt_log = False
+        self.disable_prompt_log = True
 
         if async_openai is None:
             self.async_openai = AsyncOpenai(
@@ -216,7 +211,9 @@ class Ask:
                 raise ValueError(
                     f"Cache miss for cache_key {cache_key} prompt [{short_display(prompt)} ] for model {self.model}"
                 )
-            _logger.info(f"Cache miss for for model {self.model} cache_key {cache_key}")
+            _logger.debug(
+                f"Cache miss for for model {self.model} cache_key {cache_key}"
+            )
             if API_TYPE.CHAT_COMPLETIONS in self.model.api_types:
                 answer = self.ask_chat(
                     prompt,
