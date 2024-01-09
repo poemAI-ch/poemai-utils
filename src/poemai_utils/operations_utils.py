@@ -13,7 +13,7 @@ def log_call_time(func):
         result = func(*args, **kwargs)
         delta = datetime.datetime.now() - current_time
 
-        _logger.info(f"Call: {func.__name__} took {delta.total_seconds()}.")
+        _logger.info(f"Call: {func.__name__} took {delta.total_seconds()}s.")
         return result
 
     return wrapper

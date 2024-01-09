@@ -30,6 +30,10 @@ def current_unix_time():
 
 
 class Ask:
+    OPENAI_MODEL = (
+        OPENAI_MODEL  # to make it easier to import / access, just use Ask.OPENAI_MODEL
+    )
+
     def __init__(
         self,
         model=OPENAI_MODEL.GPT_3_5_TURBO,
@@ -115,7 +119,7 @@ class Ask:
                     temperature=temperature,
                     max_tokens=max_tokens,
                     model=self.model.model_key,
-                    *args,
+                    **args,
                 )
                 .choices[0]
                 .message.content

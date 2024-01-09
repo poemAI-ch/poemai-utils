@@ -271,9 +271,15 @@ class DynamoDB:
         db_keys = [{"pk": i["pk"], "sk": i["sk"]} for i in pk_sk_list]
         if len(db_keys) == 0:
             return []
-        response = self.batch_get_item(RequestItems={table_name: {"Keys": db_keys}})
-        for item in response["Responses"][table_name]:
-            yield self.item_to_dict(item)
+
+        # split into chunks of 100
+        db_keys_chunks = [db_keys[i : i + 100] for i in range(0, len(db_keys), 100)]
+        for db_keys_chunk in db_keys_chunks:
+            response = self.batch_get_item(
+                RequestItems={table_name: {"Keys": db_keys_chunk}}
+            )
+            for item in response["Responses"][table_name]:
+                yield self.item_to_dict(item)
 
     def get_item_by_pk(self, table_name, pk):
         response = self.get_item(
