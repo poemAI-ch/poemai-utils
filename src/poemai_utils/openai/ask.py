@@ -84,7 +84,8 @@ class Ask:
         else:
             self.async_openai = async_openai
 
-    def count_tokens(self, text):
+    @classmethod
+    def count_tokens(cls, text):
         import tiktoken  # only needed if you want to count tokens
 
         """Returns the number of tokens in a text string."""
@@ -101,6 +102,7 @@ class Ask:
         suffix=None,
         system_prompt=None,
         messages=None,
+        json_mode=False,
     ):
         if not API_TYPE.CHAT_COMPLETIONS in self.model.api_types:
             raise ValueError(f"Model {self.model} does not support chat completions")
@@ -111,6 +113,9 @@ class Ask:
         args = {}
         if stop is not None:
             args["stop"] = stop
+
+        if json_mode:
+            args["response_format"] = {"type": "json_object"}
 
         try:
             response = (
@@ -185,6 +190,7 @@ class Ask:
         system_prompt=None,
         messages=None,
         metadata=None,
+        json_mode=False,
     ):
         if metadata is None:
             metadata = {}
@@ -227,6 +233,7 @@ class Ask:
                     suffix,
                     system_prompt,
                     messages,
+                    json_mode=json_mode,
                 )
             elif API_TYPE.COMPLETIONS in self.model.api_types:
                 answer = self.ask_completion(
