@@ -20,7 +20,7 @@ add_enum_attrs(
         SentenceTransformerEmbeddingModel.DISTILUSE: {
             "use_cosine_similarity": False,
         },
-        SentenceTransformerEmbeddingModel.BI_ELECTRA_GERMAN: {
+        SentenceTransformerEmbeddingModel.BI_ELECTRA_GERMAN: {  # best german embeddings found so far
             "use_cosine_similarity": True,
         },
         SentenceTransformerEmbeddingModel.DISTILBERT: {
@@ -37,6 +37,8 @@ class SentenceTransformerEmbedder(EbedderBase):
     # sentence-transformers/LaBSE'
     # svalabs/bi-electra-ms-marco-german-uncased : use_cosine_similarity=True
     def __init__(self, model_id, use_cosine_similarity=False):
+        if isinstance(model_id, str):
+            model_id = SentenceTransformerEmbeddingModel(model_id)
         super().__init__(use_cosine_similarity=model_id.use_cosine_similarity)
 
         self.model_name = model_id.value
