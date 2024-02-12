@@ -527,13 +527,18 @@ class AsyncOpenai:
                     raise RuntimeError("OpenAI API is unavailable.")
                 async for chunk_text in response.aiter_text():
                     sub_chunks = chunk_text.split("\n\n")
+
                     for sub_chunk in sub_chunks:
+                        sub_chunk = sub_chunk.strip()
                         if sub_chunk.startswith("data:"):
                             sub_chunk = sub_chunk[5:]
                         if sub_chunk == "[DONE]":
+                            continue
+                        if sub_chunk.strip() == "":
                             continue
                         try:
                             chunk = json.loads(sub_chunk)
                         except json.JSONDecodeError:
                             continue
-                        yield chunk["choices"][0]["delta"]
+                        sub_chunk_text = chunk["choices"][0]["delta"]
+                        yield sub_chunk_text
