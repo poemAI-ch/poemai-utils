@@ -85,12 +85,30 @@ class AskLlama:
 
         if stop is None:
             stop = []
+
+        logits_processors = None
+
+        if json_mode:
+            from llama_cpp import LogitsProcessorList
+            from lmformatenforcer.integrations.llamacpp import (
+                build_llamacpp_logits_processor,
+            )
+
+            logits_processors = LogitsProcessorList(
+                [
+                    build_llamacpp_logits_processor(
+                        self._tokenizer_data(), self._character_level_parser()
+                    )
+                ]
+            )
+
         output = self.llama_model.create_completion(
             self.prompt_formatter(prompt),
             max_tokens=max_tokens,
             stop=stop,
             echo=False,
             stream=False,
+            logits_processor=logits_processors,
         )
 
         return output["choices"][0]["text"]
@@ -179,3 +197,19 @@ class AskLlama:
             print(f"------ ANSWER  -------")
             print(f"{linebreak(entry['answer'])}")
             print(f"**********************")
+
+    def _tokenizer_data(self):
+        from lmformatenforcer.integrations.llamacpp import (
+            build_token_enforcer_tokenizer_data,
+        )
+
+        if self.tokenizer_data is None:
+            self.tokenizer_data = build_token_enforcer_tokenizer_data(self.llama_model)
+        return self.tokenizer_data
+
+    def _character_level_parser(self):
+        from lmformatenforcer import JsonSchemaParser
+
+        if self.character_level_parser is None:
+            self.character_level_parser = JsonSchemaParser(None)
+        return self.character_level_parser

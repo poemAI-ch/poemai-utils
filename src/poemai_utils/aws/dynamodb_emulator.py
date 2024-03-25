@@ -1,8 +1,11 @@
 import copy
+import logging
 import threading
 
 from poemai_utils.aws.dynamodb import VersionMismatchException
 from sqlitedict import SqliteDict
+
+_logger = logging.getLogger(__name__)
 
 
 class DynamoDBEmulator:
@@ -39,10 +42,11 @@ class DynamoDBEmulator:
             self.data_table.commit()
 
             index_key = self._get_index_key(table_name, pk)
-            index_list = self.index_table.get(index_key, [])
+            index_list = set(self.index_table.get(index_key, []))
 
-            index_list.append(composite_key)
-            self.index_table[index_key] = sorted(index_list)  # Sort the index list
+            index_list.add(composite_key)
+
+            self.index_table[index_key] = index_list
             self.index_table.commit()
 
     def update_versioned_item_by_pk_sk(
@@ -100,8 +104,8 @@ class DynamoDBEmulator:
     def get_paginated_items_by_pk(self, table_name, pk, limit=None):
         results = []
         index_key = self._get_index_key(table_name, pk)
-        composite_keys = self.index_table.get(index_key, [])
-        for composite_key in composite_keys:
+        composite_keys = set(self.index_table.get(index_key, []))
+        for composite_key in sorted(composite_keys):
             item = self.data_table.get(composite_key, None)
             if item:
                 pk, sk = self._get_pk_sk_from_composite_key(composite_key)

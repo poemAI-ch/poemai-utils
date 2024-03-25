@@ -75,3 +75,28 @@ def test_db(tmp_path):
         db.update_versioned_item_by_pk_sk(
             TABLE_NAME, "pk1", "sk2", {"data": "data6"}, 1
         )
+
+    db.store_item(TABLE_NAME, {"pk": "pk99", "sk": "sk77", "data": "data1"})
+    db.store_item(TABLE_NAME, {"pk": "pk99", "sk": "sk22", "data": "data2"})
+    db.store_item(TABLE_NAME, {"pk": "pk99", "sk": "sk77", "data": "data2"})
+
+    result = db.get_paginated_items_by_pk(TABLE_NAME, "pk99")
+
+    result_composite_keys = [(item["pk"], item["sk"]) for item in result]
+
+    # Check that there are no duplicates
+    assert len(result) == len(set(result_composite_keys))
+
+    NUM_ITEMS = 9
+    for i in range(NUM_ITEMS):
+        # insert in revers
+        db.store_item(
+            TABLE_NAME, {"pk": "pk88", "sk": f"sk{NUM_ITEMS - i}", "data": f"data{i}"}
+        )
+
+    result = db.get_paginated_items_by_pk(TABLE_NAME, "pk88")
+
+    result_composite_keys = [(item["pk"], item["sk"]) for item in result]
+
+    # check that the items are sorted by the composite key (pk, sk)
+    assert result_composite_keys == sorted(result_composite_keys)

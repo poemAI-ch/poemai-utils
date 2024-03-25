@@ -197,17 +197,17 @@ class DynamoDB:
         for attr, value in attribute_updates.items():
             placeholder = f":{attr}"
             set_expressions.append(f"#{attr} = {placeholder}")
-            expression_attribute_values[
-                placeholder
-            ] = self.ddb_type_serializer.serialize(value)
+            expression_attribute_values[placeholder] = (
+                self.ddb_type_serializer.serialize(value)
+            )
 
         update_expression = "SET " + ", ".join(set_expressions)
         expression_attribute_names = {
             f"#{attr}": attr for attr in attribute_updates.keys()
         }
-        expression_attribute_names[
-            f"#{version_attribute_name}"
-        ] = version_attribute_name
+        expression_attribute_names[f"#{version_attribute_name}"] = (
+            version_attribute_name
+        )
 
         try:
             # Perform a conditional update
