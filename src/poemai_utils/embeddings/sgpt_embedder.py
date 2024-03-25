@@ -1,9 +1,9 @@
 import torch
-from poemai_utils.embeddings.embedder_base import EbedderBase
+from poemai_utils.embeddings.embedder_base import EmbedderBase
 from transformers import AutoModel, AutoTokenizer
 
 
-class SGPTEmbedder(EbedderBase):
+class SGPTEmbedder(EmbedderBase):
     def __init__(
         self, model_name="Muennighoff/SGPT-125M-weightedmean-msmarco-specb-bitfit"
     ):

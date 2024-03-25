@@ -1,6 +1,6 @@
 from enum import Enum
 
-from poemai_utils.embeddings.embedder_base import EbedderBase
+from poemai_utils.embeddings.embedder_base import EmbedderBase
 from poemai_utils.enum_utils import add_enum_attrs, add_enum_repr
 from sentence_transformers import SentenceTransformer
 
@@ -31,7 +31,7 @@ add_enum_attrs(
 add_enum_repr(SentenceTransformerEmbeddingModel)
 
 
-class SentenceTransformerEmbedder(EbedderBase):
+class SentenceTransformerEmbedder(EmbedderBase):
     # msmarco-distilbert-base-tas-b
     # distiluse-base-multilingual-cased-v1
     # sentence-transformers/LaBSE'

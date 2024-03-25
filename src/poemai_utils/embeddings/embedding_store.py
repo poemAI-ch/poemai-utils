@@ -1,7 +1,7 @@
 from hashlib import sha256
 
 import numpy as np
-from poemai_utils.embeddings.embedder_base import EbedderBase
+from poemai_utils.embeddings.embedder_base import EmbedderBase
 from poemai_utils.embeddings.embedding_cache import EmbeddingCache
 
 
@@ -10,8 +10,8 @@ class EmbeddingStore:
         self.embedder = embedder
         if self.embedder is None:
             raise ValueError("embedder must be provided")
-        if not isinstance(self.embedder, EbedderBase):
-            raise ValueError("embedder must be an EbedderBase object")
+        if not isinstance(self.embedder, EmbedderBase):
+            raise ValueError("embedder must be an EmbedderBase object")
 
         self.texts = []
         self.embedding_matrix = None

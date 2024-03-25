@@ -1,8 +1,8 @@
 import numpy as np
-from poemai_utils.embeddings.embedder_base import EbedderBase
+from poemai_utils.embeddings.embedder_base import EmbedderBase
 
 
-class OpenAIEmbedder(EbedderBase):
+class OpenAIEmbedder(EmbedderBase):
     def __init__(self, model_name="text-embedding-ada-002", openai_api_key=None):
         try:
             from openai import OpenAI
