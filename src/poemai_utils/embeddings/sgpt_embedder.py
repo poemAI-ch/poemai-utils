@@ -83,3 +83,6 @@ class SGPTEmbedder(EmbedderBase):
     def calc_embedding(self, text, is_query: bool = False):
         tokens = self.tokenize_with_specb([text], is_query=is_query)
         return self.get_weightedmean_embedding(tokens)[0]
+
+    def embedding_dim(self):
+        return self.model.config.hidden_size

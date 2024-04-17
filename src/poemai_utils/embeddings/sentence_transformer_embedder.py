@@ -16,15 +16,19 @@ add_enum_attrs(
     {
         SentenceTransformerEmbeddingModel.LABSE: {
             "use_cosine_similarity": False,
+            "embeddings_dimensions": 768,
         },
         SentenceTransformerEmbeddingModel.DISTILUSE: {
             "use_cosine_similarity": False,
+            "embeddings_dimensions": 768,
         },
         SentenceTransformerEmbeddingModel.BI_ELECTRA_GERMAN: {  # best german embeddings found so far
             "use_cosine_similarity": True,
+            "embeddings_dimensions": 768,
         },
         SentenceTransformerEmbeddingModel.DISTILBERT: {
             "use_cosine_similarity": False,
+            "embeddings_dimensions": 768,
         },
     }
 )
@@ -46,3 +50,6 @@ class SentenceTransformerEmbedder(EmbedderBase):
 
     def calc_embedding(self, text, is_query: bool = False):
         return self.model.encode(text, show_progress_bar=False)
+
+    def embedding_dim(self):
+        return self.model.embeddings_dimensions

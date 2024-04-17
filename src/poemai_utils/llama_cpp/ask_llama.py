@@ -51,7 +51,7 @@ class AskLlama:
 
         self.llama_model = Llama(
             model_path=model_path,
-            n_gpu_layers=-1 if use_gpu else None,  # Uncomment to use GPU acceleration
+            n_gpu_layers=-1 if use_gpu else 0,  # Uncomment to use GPU acceleration
             n_ctx=n_ctx,
         )
 

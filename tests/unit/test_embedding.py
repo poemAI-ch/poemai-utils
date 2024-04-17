@@ -6,6 +6,7 @@ from poemai_utils.embeddings.openai_embedder import OpenAIEmbedder
 from poemai_utils.embeddings.sentence_transformer_embedder import (
     SentenceTransformerEmbedder,
 )
+from poemai_utils.embeddings.sgpt_embedder import SGPTEmbedder
 
 
 def test_embedding():
@@ -36,3 +37,8 @@ def test_embedding_factory():
         "svalabs/bi-electra-ms-marco-german-uncased"
     )
     assert isinstance(bi_electra_german_embedder, SentenceTransformerEmbedder)
+
+
+def test_sgpt_embedder():
+    sgpt_embedder = SGPTEmbedder()
+    assert sgpt_embedder.embedding_dim() == 768

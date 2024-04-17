@@ -33,6 +33,30 @@ def add_enum_repr_attr(enum_class):
 
 
 def add_enum_attrs(attr_dict):
+    attr_set = None
+    enum_classes = set([k.__class__ for k in attr_dict.keys()])
+    if len(enum_classes) > 1:
+        raise ValueError("All enums must be of the same class")
+
+    enum_class = enum_classes.pop()
+    members = set([e for e in enum_class])
+
+    enum_names_keys = set(attr_dict.keys())
+
+    if members != enum_names_keys:
+        missing_names = [e.name for e in members - enum_names_keys]
+        raise ValueError(
+            f"All enums must be defined in the enum class, but {missing_names} are missing."
+        )
+
     for enum_key, enum_attrs in attr_dict.items():
+        if attr_set is None:
+            attr_set = set(enum_attrs.keys())
+        else:
+            if set(enum_attrs.keys()) != attr_set:
+
+                raise ValueError(
+                    f"All enums must have the same attributes. {enum_key} does not have the same attributes as others."
+                )
         for attr_key, value in enum_attrs.items():
             setattr(enum_key, attr_key, value)
