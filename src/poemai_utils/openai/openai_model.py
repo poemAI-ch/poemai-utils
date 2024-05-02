@@ -20,6 +20,11 @@ class OPENAI_MODEL(str, Enum):
 
     @classmethod
     def by_model_key(cls, model_key):
+        if "." in model_key:
+            key_components = model_key.split(".")
+            model_key = key_components[1]
+            if key_components[0] != "openai":
+                raise ValueError(f"Unknown model_key: {model_key}")
         for model in cls:
             if model.model_key == model_key:
                 return model
