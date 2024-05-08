@@ -367,25 +367,24 @@ class DynamoDB:
         expression_attribute_values,
         projection_expression=None,
         limit=100,
+        index_name=None,
     ):
         """A proxy for boto3.dynamodb.table.query"""
 
         paginator = self.dynamodb_client.get_paginator("query")
+
+        kwargs = {
+            "TableName": table_name,
+            "KeyConditionExpression": key_condition_expression,
+            "ExpressionAttributeValues": expression_attribute_values,
+            "Limit": limit,
+        }
         if projection_expression is not None:
-            page_iterator = paginator.paginate(
-                TableName=table_name,
-                KeyConditionExpression=key_condition_expression,
-                ExpressionAttributeValues=expression_attribute_values,
-                ProjectionExpression=projection_expression,
-                Limit=limit,
-            )
-        else:
-            page_iterator = paginator.paginate(
-                TableName=table_name,
-                KeyConditionExpression=key_condition_expression,
-                ExpressionAttributeValues=expression_attribute_values,
-                Limit=limit,
-            )
+            kwargs["ProjectionExpression"] = projection_expression
+        if index_name is not None:
+            kwargs["IndexName"] = index_name
+
+        page_iterator = paginator.paginate(**kwargs)
 
         for page in page_iterator:
             for item in page["Items"]:
@@ -396,6 +395,25 @@ class DynamoDB:
             table_name=table_name,
             key_condition_expression="pk = :pk",
             expression_attribute_values={":pk": {"S": pk}},
+            limit=limit,
+        ):
+            yield self.item_to_dict(item)
+
+    def get_paginated_items_by_sk(self, table_name, index_name, sk, limit=100):
+        """Get paginated items by sk
+        This only works if an index is present on the table which has sk as the primary key
+
+        Args:
+            table_name (str): The name of the table
+            index_name (str): The name of the index which has sk as the primary key
+            sk (str): The value of the sk
+            limit (int): The number of items to return in each page
+        """
+        for item in self.get_paginated_items(
+            table_name=table_name,
+            key_condition_expression="sk = :sk",
+            expression_attribute_values={":sk": {"S": sk}},
+            index_name=index_name,
             limit=limit,
         ):
             yield self.item_to_dict(item)
