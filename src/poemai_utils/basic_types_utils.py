@@ -50,3 +50,11 @@ def remove_none_from_dict(
             retval[key] = value
 
     return retval
+
+
+def compare_as_strings(a, b):
+    if a is None and b is None:
+        return True
+    if a is None or b is None:
+        return False
+    return str(a) == str(b)
