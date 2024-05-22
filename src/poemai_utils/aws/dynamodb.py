@@ -272,14 +272,28 @@ class DynamoDB:
         if len(db_keys) == 0:
             return []
 
-        # split into chunks of 100
+        # Split into chunks of 100
         db_keys_chunks = [db_keys[i : i + 100] for i in range(0, len(db_keys), 100)]
+
         for db_keys_chunk in db_keys_chunks:
-            response = self.batch_get_item(
-                RequestItems={table_name: {"Keys": db_keys_chunk}}
-            )
-            for item in response["Responses"][table_name]:
-                yield self.item_to_dict(item)
+            while db_keys_chunk:
+                response = self.batch_get_item(
+                    RequestItems={table_name: {"Keys": db_keys_chunk}}
+                )
+
+                # Yield the items retrieved
+                for item in response.get("Responses", {}).get(table_name, []):
+                    yield self.item_to_dict(item)
+
+                # Check for unprocessed keys and retry them
+                db_keys_chunk = (
+                    response.get("UnprocessedKeys", {})
+                    .get(table_name, {})
+                    .get("Keys", [])
+                )
+
+                if not db_keys_chunk:
+                    break
 
     def get_item_by_pk(self, table_name, pk):
         response = self.get_item(
@@ -442,23 +456,46 @@ class DynamoDB:
         ExpressionAttributeValues,
         ProjectionExpression=None,
     ):
-        """A proxy for boto3.dynamodb.table.query"""
+        """A proxy for boto3.dynamodb.table.query with pagination handling"""
 
-        args = {"TableName": TableName}
-        if KeyConditionExpression is not None:
-            args["KeyConditionExpression"] = KeyConditionExpression
-        if ExpressionAttributeValues is not None:
-            args["ExpressionAttributeValues"] = ExpressionAttributeValues
+        args = {
+            "TableName": TableName,
+            "KeyConditionExpression": KeyConditionExpression,
+            "ExpressionAttributeValues": ExpressionAttributeValues,
+        }
         if ProjectionExpression is not None:
             args["ProjectionExpression"] = ProjectionExpression
 
+        all_items = []
         response = self.dynamodb_client.query(**args)
 
-        # check response for errors
+        # check initial response for errors
         if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
             _logger.error(
                 f"Error running query with KeyConditionExpression {KeyConditionExpression}, ExpressionAttributeValues {ExpressionAttributeValues}, response: {response}"
             )
+            return response
+
+        all_items.extend(response.get("Items", []))
+
+        # Handle pagination
+        while "LastEvaluatedKey" in response:
+            args["ExclusiveStartKey"] = response["LastEvaluatedKey"]
+            response = self.dynamodb_client.query(**args)
+
+            # check each response for errors
+            if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
+                _logger.error(
+                    f"Error running query with KeyConditionExpression {KeyConditionExpression}, ExpressionAttributeValues {ExpressionAttributeValues}, response: {response}"
+                )
+                return response
+
+            all_items.extend(response.get("Items", []))
+
+        # Modify the final response to include all items
+        response["Items"] = all_items
+        response["Count"] = len(all_items)
+        response.pop("LastEvaluatedKey", None)
 
         return response
 
