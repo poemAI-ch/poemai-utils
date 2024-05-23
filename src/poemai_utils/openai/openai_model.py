@@ -6,6 +6,7 @@ from poemai_utils.enum_utils import add_enum_attrs, add_enum_repr, add_enum_repr
 class OPENAI_MODEL(str, Enum):
     GPT_4_o = "gpt-4o"
     GPT_4_o_2024_05_13 = "gpt-4o-2024-05-13"
+    GPT_4_TURBO_2024_04_09 = "gpt-4-turbo-2024-04-09"
     GPT_4_TURBO = "gpt_4_turbo"
     GPT_4_TURBO_PREVIEW = "gpt-4-turbo-preview"
     GPT_4_0125_PREVIEW = "gpt-4-0125-preview"
@@ -63,6 +64,13 @@ add_enum_attrs(
             "api_types": [API_TYPE.CHAT_COMPLETIONS],
             "expensive": True,
             "supports_vision": False,
+            "embeddings_dimensions": None,
+        },
+        OPENAI_MODEL.GPT_4_TURBO_2024_04_09: {
+            "model_key": "gpt-4-turbo-2024-04-09",
+            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "expensive": True,
+            "supports_vision": True,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_4_TURBO_PREVIEW: {
