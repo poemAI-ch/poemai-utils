@@ -9,8 +9,11 @@ from poemai_utils.openai.openai_model import API_TYPE, OPENAI_MODEL
 
 def make_embedder(model_id: str, **kwargs) -> EmbedderBase:
     try:
+        transformer_args = {
+            k: v for k, v in kwargs.items() if k in ["use_cosine_similarity"]
+        }
         model_id_enum = SentenceTransformerEmbeddingModel(model_id)
-        return SentenceTransformerEmbedder(model_id_enum, **kwargs)
+        return SentenceTransformerEmbedder(model_id_enum, **transformer_args)
     except ValueError:
         pass
 
@@ -20,8 +23,9 @@ def make_embedder(model_id: str, **kwargs) -> EmbedderBase:
     except ValueError:
         pass
     if openai_model_id_enum is not None:
+        openai_args = {k: v for k, v in kwargs.items() if k in ["openai_api_key"]}
         if API_TYPE.EMBEDDINGS in openai_model_id_enum.api_types:
-            return OpenAIEmbedder(openai_model_id_enum, **kwargs)
+            return OpenAIEmbedder(openai_model_id_enum, **openai_args)
         else:
             raise ValueError(f"Model {model_id} does not support embeddings")
     else:

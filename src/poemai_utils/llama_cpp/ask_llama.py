@@ -147,29 +147,36 @@ class AskLlama:
         messages=None,
         metadata=None,
     ) -> AsyncGenerator[dict, None]:
-        if system_prompt is not None:
-            print(f"Warning: system_prompt is not supported for {self.llama_model}")
-        if messages is not None:
-            print(f"Warning: messages is not supported for {self.llama_model}")
+        try:
+            if system_prompt is not None:
+                print(f"Warning: system_prompt is not supported for {self.llama_model}")
+            if messages is not None:
+                print(f"Warning: messages is not supported for {self.llama_model}")
 
-        if stop is None:
-            stop = []
+            if stop is None:
+                stop = []
+            _logger.info(f"Getting generator from llama model")
+            generator = self.llama_model.create_completion(
+                self.prompt_formatter(prompt),
+                max_tokens=max_tokens,
+                stop=stop,
+                echo=False,
+                stream=True,
+            )
 
-        generator = self.llama_model.create_completion(
-            self.prompt_formatter(prompt),
-            max_tokens=max_tokens,
-            stop=stop,
-            echo=False,
-            stream=True,
-        )
+            _logger.info(f"Generator obtained; starting async ask")
 
-        # Adapt the synchronous generator for asynchronous iteration
-        async for part in self._adapt_sync_gen_to_async(generator):
-            _logger.debug(f"part: {part}")
-            part_content = part.get("choices")[0]["text"]
-            yield {"content": part_content}
+            # Adapt the synchronous generator for asynchronous iteration
+            async for part in self._adapt_sync_gen_to_async(generator):
+                _logger.debug(f"part: {part}")
+                part_content = part.get("choices")[0]["text"]
+                _logger.info("Yielding chunk")
+                yield {"content": part_content}
 
-        _logger.info(f"Finished async ask")
+            _logger.info(f"Finished async ask")
+        except Exception as e:
+            _logger.error(f"Error in async ask: {e}", exc_info=True)
+            raise e
 
     async def _adapt_sync_gen_to_async(self, sync_gen):
         loop = asyncio.get_running_loop()
@@ -186,6 +193,9 @@ class AskLlama:
             except StopIteration:
                 # This block may not be necessary if you use the default sentinel value as shown above
                 break  # Ensure proper termination if StopIteration is raised
+            except Exception as e:
+                _logger.info(f"Error in async ask: {e}", exc_info=True)
+                raise e
 
     def print_log(self, limit=10):
         for key in list(sorted(self.gpt_log.keys()))[-limit:]:

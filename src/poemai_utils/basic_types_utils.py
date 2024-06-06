@@ -58,3 +58,27 @@ def compare_as_strings(a, b):
     if a is None or b is None:
         return False
     return str(a) == str(b)
+
+
+def any_to_bool(value):
+    """
+    Converts a value to a boolean. Handles common string representations
+    of boolean values as well as numeric values.
+
+    Parameters:
+    value (str/int/float/bool/None): The value to convert.
+
+    Returns:
+    bool: The boolean representation of the value.
+    """
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        value = value.strip().lower()
+        if value in {"true", "1", "yes", "y"}:
+            return True
+        if value in {"false", "0", "no", "n"}:
+            return False
+    return False  # Default to False for any other cases (None, empty string, etc.)
