@@ -12,8 +12,14 @@ _logger = logging.getLogger(__name__)
 
 class DynamoDBEmulator:
     def __init__(self, sqlite_filename):
-        self.data_table = SqliteDict(sqlite_filename, tablename="data")
-        self.index_table = SqliteDict(sqlite_filename, tablename="index")
+        if sqlite_filename is not None:
+            self.data_table = SqliteDict(sqlite_filename, tablename="data")
+            self.index_table = SqliteDict(sqlite_filename, tablename="index")
+            self.is_sqlite = True
+        else:
+            self.data_table = {}
+            self.index_table = {}
+            self.is_sqlite = False
         self.lock = threading.Lock()
 
     def _get_composite_key(self, table_name, pk, sk):
@@ -25,6 +31,11 @@ class DynamoDBEmulator:
 
     def _get_index_key(self, table_name, pk):
         return f"{table_name}#{pk}"
+
+    def _commit(self):
+        if self.is_sqlite:
+            self.data_table.commit()
+            self.index_table.commit()
 
     def get_all_items(self):
         for k, v in self.data_table.items():
@@ -41,7 +52,6 @@ class DynamoDBEmulator:
 
             # Store the item
             self.data_table[composite_key] = item
-            self.data_table.commit()
 
             index_key = self._get_index_key(table_name, pk)
             index_list = set(self.index_table.get(index_key, []))
@@ -49,7 +59,7 @@ class DynamoDBEmulator:
             index_list.add(composite_key)
 
             self.index_table[index_key] = index_list
-            self.index_table.commit()
+            self._commit()
 
     def update_versioned_item_by_pk_sk(
         self,
@@ -85,7 +95,7 @@ class DynamoDBEmulator:
 
             # Store the updated item
             self.data_table[composite_key] = item
-            self.data_table.commit()
+            self._commit()
 
     def get_item_by_pk_sk(self, table_name, pk, sk):
         composite_key = self._get_composite_key(table_name, pk, sk)
@@ -123,14 +133,13 @@ class DynamoDBEmulator:
 
         # Delete the item
         del self.data_table[composite_key]
-        self.data_table.commit()
 
         # Delete the index
         index_key = self._get_index_key(table_name, pk)
         index_list = self.index_table.get(index_key, [])
         index_list.remove(composite_key)
         self.index_table[index_key] = index_list
-        self.index_table.commit()
+        self._commit()
 
     def scan_for_items_by_pk_sk(self, table_name, pk_contains, sk_contains):
         raise NotImplementedError("scan_for_items_by_pk_sk not implemented")
