@@ -38,6 +38,12 @@ class VersionMismatchException(Exception):
     pass
 
 
+class ItemAlreadyExistsException(Exception):
+    """Exception raised when an attempt is made to insert an item that already exists."""
+
+    pass
+
+
 class BinaryPoemai:
     """A class for representing Binary in dynamodb
 
@@ -175,6 +181,33 @@ class DynamoDB:
             _logger.error(f"Error storing item {item}, response: {response}")
         else:
             _logger.debug(f"Stored item {item}, response: {response}")
+
+    def store_new_item(self, table_name, item, primary_key_name):
+        """Store an item only if it does not already exist."""
+        dynamodb_item = self.ddb_type_serializer.serialize(item)
+        condition = f"attribute_not_exists({primary_key_name})"
+        try:
+            response = self.dynamodb_client.put_item(
+                TableName=table_name,
+                Item=dynamodb_item["M"],
+                ConditionExpression=condition,
+            )
+            _logger.debug(
+                f"Successfully stored new item {item} in table {table_name}, response: {response}"
+            )
+        except ClientError as e:
+            if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
+                _logger.info(
+                    f"Item with primary key {primary_key_name} already exists in table {table_name}."
+                )
+                raise ItemAlreadyExistsException(
+                    f"Item with primary key {primary_key_name} already exists."
+                )
+            else:
+                _logger.error(
+                    f"Failed to store new item {item} in table {table_name}, error: {e}"
+                )
+                raise
 
     def update_versioned_item_by_pk_sk(
         self,
