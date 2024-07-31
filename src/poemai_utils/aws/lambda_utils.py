@@ -16,9 +16,16 @@ def extract_parameters(event, context):
                       with each containing parameters from one SQS message. If from API Gateway or a single
                       SQS message, returns a single dictionary of parameters.
     """
+
+    def json_or_string(body):
+        try:
+            return json.loads(body)
+        except json.JSONDecodeError:
+            return body
+
     # Check if this is an SQS message
     if "Records" in event and event["Records"][0].get("eventSource") == "aws:sqs":
-        messages = [json.loads(record["body"]) for record in event["Records"]]
+        messages = [json_or_string(record["body"]) for record in event["Records"]]
         return messages if len(messages) > 1 else messages[0]
 
     # API Gateway request: Combine query string and path parameters
