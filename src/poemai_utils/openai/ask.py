@@ -45,6 +45,7 @@ class Ask:
         raise_on_cache_miss=False,
         disable_prompt_log=None,
         async_openai=None,
+        check_token_count=False,
     ):
         try:
             from openai import OpenAI
@@ -79,10 +80,16 @@ class Ask:
 
         if async_openai is None:
             self.async_openai = AsyncOpenai(
-                model=self.model, openai_api_key=self._openai_api_key
+                model=self.model,
+                openai_api_key=self._openai_api_key,
+                check_token_count=check_token_count,
             )
         else:
             self.async_openai = async_openai
+
+    def get_last_token_statistics(self):
+        if self.async_openai is not None:
+            return self.async_openai.last_token_statistics
 
     @classmethod
     def count_tokens(cls, text):
@@ -492,9 +499,11 @@ class AskGPT_3_5_TURBO(Ask):
 
 
 class AsyncOpenai:
-    def __init__(self, model, openai_api_key):
+    def __init__(self, model, openai_api_key, check_token_count=False):
         self._openai_api_key = openai_api_key
         self.model = model
+        self.check_token_count = check_token_count
+        self.last_token_statistics = None
 
     async def ask_chat_async(
         self,
@@ -517,28 +526,64 @@ class AsyncOpenai:
             "max_tokens": max_tokens,
             "stop": stop,
             "stream": True,
+            "stream_options": {"include_usage": True},
         }
 
+        full_text = ""
+        usage_data = None
+
         async with httpx.AsyncClient() as client:
+            if self.check_token_count:
+                self.last_token_statistics = None
             async with client.stream(
                 "POST", OPENAI_API_URL, headers=headers, content=json.dumps(data)
             ) as response:
                 if response.status_code != 200:
                     raise RuntimeError("OpenAI API is unavailable.")
-                async for chunk_text in response.aiter_text():
-                    sub_chunks = chunk_text.split("\n\n")
 
-                    for sub_chunk in sub_chunks:
-                        sub_chunk = sub_chunk.strip()
-                        if sub_chunk.startswith("data:"):
-                            sub_chunk = sub_chunk[5:]
-                        if sub_chunk == "[DONE]":
-                            continue
-                        if sub_chunk.strip() == "":
+                buffer = ""
+                async for chunk_text in response.aiter_text():
+                    buffer += chunk_text
+                    while "\n\n" in buffer:
+                        message, buffer = buffer.split("\n\n", 1)
+                        message = message.strip()
+                        if message.startswith("data:"):
+                            message = message[5:].strip()
+                        if message == "":
                             continue
                         try:
-                            chunk = json.loads(sub_chunk)
+                            chunk = json.loads(message)
+                            if chunk.get("choices"):
+                                if len(chunk["choices"]) > 0:
+                                    delta = chunk["choices"][0].get("delta", {})
+                                    if delta:
+                                        full_text += delta.get("content", "")
+                                        yield delta
+                            if (
+                                chunk.get("usage") is not None
+                            ):  # Capture usage data in the last chunk
+                                usage_data = chunk["usage"]
                         except json.JSONDecodeError:
                             continue
-                        sub_chunk_text = chunk["choices"][0]["delta"]
-                        yield sub_chunk_text
+
+                # Verify token counts
+                if self.check_token_count:
+                    if usage_data:
+                        if "completion_tokens" in usage_data:
+                            our_token_count = Ask.count_tokens(full_text)
+                            api_reported_tokens = usage_data["completion_tokens"]
+                            discrepancy = our_token_count != api_reported_tokens
+
+                            self.last_token_statistics = {
+                                "our_answer_tokens": our_token_count,
+                                "api_reported_tokens": api_reported_tokens,
+                                "discrepancy": discrepancy,
+                            }
+                            if discrepancy:
+                                _logger.warning(
+                                    f"Token count discrepancy detected. Counted: {our_token_count}, Reported: {api_reported_tokens}"
+                                )
+                            else:
+                                _logger.info(
+                                    f"Token count verified. Counted: {our_token_count}, Reported: {api_reported_tokens}"
+                                )
