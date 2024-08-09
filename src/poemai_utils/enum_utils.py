@@ -1,7 +1,4 @@
-from enum import Enum, EnumMeta, EnumType
-from types import DynamicClassAttribute
-
-from zmq import has
+from enum import Enum, EnumType
 
 
 def _enum_str(self):
