@@ -170,7 +170,9 @@ class DynamoDB:
     def store_item(self, table_name, item):
         dynamodb_item = self.ddb_type_serializer.serialize(item)
         _logger.debug("Storing item %s in table %s", item, table_name)
-        _logger.debug("Serialized to %s", json.dumps(dynamodb_item, indent=2))
+        _logger.debug(
+            "Serialized to %s", json.dumps(dynamodb_item, indent=2, default=str)
+        )
         dynamodb_item = dynamodb_item["M"]
         response = self.put_item(
             TableName=table_name,

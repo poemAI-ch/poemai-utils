@@ -1,3 +1,9 @@
+from enum import Enum, EnumMeta, EnumType
+from types import DynamicClassAttribute
+
+from zmq import has
+
+
 def _enum_str(self):
     return f"{self.__class__.__name__}.{self.name}"
 
@@ -60,3 +66,95 @@ def add_enum_attrs(attr_dict):
                 )
         for attr_key, value in enum_attrs.items():
             setattr(enum_key, attr_key, value)
+
+
+def merge_enums(
+    *enums,
+    name="MergedEnum",
+    base=str,
+    module="__main__",
+    fields=None,
+    member_filter=None,
+    original_enum_member_field_name=None,
+):
+    """Merge multiple Enum classes into a single Enum class with base type."""
+    # Accumulate all members from each enum
+
+    if fields is None:
+        fields = []
+    if member_filter is None:
+        member_filter = lambda x: True
+
+    new_enum_type = Enum(name, {}, module=module)
+
+    for enum in enums:
+        for member in enum:
+
+            if not member_filter(member):
+                continue
+
+            new_value = member.value
+            new_name = member.name
+
+            print(f"Member: {member}, value: {new_value}, name: {new_name}")
+
+            new_member = new_enum_type._new_member_(new_enum_type)
+            new_member._value_ = new_value
+            value = new_member._value_
+
+            new_member._name_ = new_name
+            new_member.__objclass__ = new_enum_type.__class__
+            new_member.__init__()
+            new_member._values_ = (value,)
+            new_member._sort_order_ = len(new_enum_type._member_names_)
+
+            for field in fields:
+                field_value = None
+                if hasattr(member, field):
+                    field_value = getattr(member, field)
+                setattr(new_member, field, field_value)
+
+            if original_enum_member_field_name is not None:
+                setattr(new_member, original_enum_member_field_name, member)
+
+            new_enum_type._value2member_map_[value] = new_member
+            new_enum_type._member_names_.append(new_name)
+            new_enum_type._member_map_[new_name] = new_member
+
+    return new_enum_type
+
+
+# Function to create a new Enum dynamically merging multiple enums
+def merge_enums_2(
+    enums,
+    name="MergedEnum",
+    base=str,
+    fields=None,
+    original_enum_member_field_name=None,
+):
+    if fields is None:
+        fields = []
+    """Merge multiple Enum classes into a single Enum class."""
+    merged = {}
+    for enum_contributor_class in enums:
+        for member in enum_contributor_class:
+            merged[member.name] = member.value
+            # print(f"Member: {member} type: {type(member)}")
+            # member_value = member
+            # if hasattr(member, "value"):
+            #     member_value = member.value
+
+            # merged[member.name] = member_value
+            # for field in fields:
+            #     field_value = None
+            #     if hasattr(enum_contributor_class, field):
+            #         field_value = getattr(enum_contributor_class, field)
+            #         setattr(member, field, field_value)
+            # if original_enum_member_field_name is not None:
+            #     setattr(member, original_enum_member_field_name,member)
+
+    # Using the EnumMeta metaclass to create a new Enum type
+
+    retval = EnumType(name, merged, type=base)
+
+    return retval

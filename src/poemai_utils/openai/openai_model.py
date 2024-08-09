@@ -22,7 +22,7 @@ class OPENAI_MODEL(str, Enum):
     GPT_3_5_TURBO_0125 = "gpt-3.5-turbo-0125"
     ADA_002_EMBEDDING = "text-embedding-ada-002"
     TEXT_EMBEDDING_3_LARGE = "text-embedding-3-large"
-    TEXT_EMBEDDING_3_SMALL = "text-embedding_3-small"
+    TEXT_EMBEDDING_3_SMALL = "text-embedding-3-small"
 
     @classmethod
     def by_model_key(cls, model_key):
