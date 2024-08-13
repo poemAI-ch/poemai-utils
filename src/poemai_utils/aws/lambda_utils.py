@@ -35,6 +35,10 @@ def extract_parameters(event, context):
     if "pathParameters" in event:
         params.update(event["pathParameters"])
 
+    if "source" in event and event["source"] == "aws.events":
+        # EventBridge event, just merge in the event data
+        params.update(event)
+
     # Handle direct invoke or test event with a JSON body
     if not params and "body" in event:
         return json.loads(event["body"])

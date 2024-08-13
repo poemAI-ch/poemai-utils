@@ -65,3 +65,26 @@ def test_extract_parameters():
         ]
     }
     assert extract_parameters(event, None) == "hello world"
+
+
+def test_event_bridge_event():
+    event = {
+        "version": "0",
+        "id": "89d1a02d-5ec7-412e-82f5-13505f849b41",
+        "detail-type": "Scheduled Event",
+        "source": "aws.events",
+        "account": "123456789012",
+        "time": "2020-07-28T18:03:33Z",
+        "region": "us-west-2",
+        "resources": ["arn:aws:events:us-west-2:123456789012:rule/MyRule"],
+        "detail": {},
+    }
+
+    parameters = extract_parameters(event, None)
+
+    assert parameters["id"] == "89d1a02d-5ec7-412e-82f5-13505f849b41"
+    assert parameters["detail-type"] == "Scheduled Event"
+    assert parameters["source"] == "aws.events"
+    assert parameters["resources"] == [
+        "arn:aws:events:us-west-2:123456789012:rule/MyRule"
+    ]

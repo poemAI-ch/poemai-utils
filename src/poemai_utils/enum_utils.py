@@ -93,7 +93,7 @@ def merge_enums(
             new_value = member.value
             new_name = member.name
 
-            print(f"Member: {member}, value: {new_value}, name: {new_name}")
+            # print(f"Member: {member}, value: {new_value}, name: {new_name}")
 
             new_member = new_enum_type._new_member_(new_enum_type)
             new_member._value_ = new_value
