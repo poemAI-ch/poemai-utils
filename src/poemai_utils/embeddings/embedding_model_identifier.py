@@ -32,8 +32,21 @@ EmbeddingModelIdentifier = merge_enums(
 
 add_enum_repr(EmbeddingModelIdentifier)
 
-# EmbeddingModelIdentifier = merge_enums(
-#     [OPENAI_MODEL, SentenceTransformerEmbeddingModel],
-#     "EmbeddingModelIdentifier",
-#     fields=["model_key"],
-# )
+
+def find_embedding_model_identifier(model_key: str):
+    for model in EmbeddingModelIdentifier:
+        if "." in model_key:
+            model_key = model_key.split(".")[-1]
+
+        if model.model_key == model_key:
+            return model
+        if model.value == model_key:
+            return model
+
+        if model.name == model_key:
+            return model
+
+        if model.name.lower() == model_key.lower():
+            return model
+
+    raise ValueError(f"Model key {model_key} not found in EmbeddingModelIdentifier")

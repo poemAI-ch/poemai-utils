@@ -35,7 +35,7 @@ class OpenAIEmbedder(EmbedderBase):
         if openai_api_key is not None:
             self.client = OpenAI(api_key=openai_api_key)
         else:
-            self.client = OpenAI()
+            raise Exception("OpenAI API key is required")
 
         _logger.info(f"Initialized OpenAIEmbedder with model {model_name}")
 

@@ -66,6 +66,3 @@ class SelfSimilarityAnalyzer:
             )
 
         return retval
-
-    def metadata(self, text_id):
-        return self.metadata.get(text_id)
