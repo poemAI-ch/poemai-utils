@@ -32,8 +32,12 @@ def extract_parameters(event, context):
     params = {}
     if "queryStringParameters" in event:
         params.update(event["queryStringParameters"])
-    if "pathParameters" in event:
+    if "pathParameters" in event and event["pathParameters"] is not None:
         params.update(event["pathParameters"])
+
+    for k in ["httpMethod", "body", "headers", "resource", "path", "requestContext"]:
+        if k in event:
+            params[k] = event[k]
 
     if "source" in event and event["source"] == "aws.events":
         # EventBridge event, just merge in the event data
