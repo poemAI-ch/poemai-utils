@@ -55,7 +55,8 @@ class AskLlama:
             n_ctx=n_ctx,
         )
 
-        self.model = SimpleNamespace(name="llama")
+        model_filename = Path(model_path).name
+        self.model = SimpleNamespace(name="llama_" + model_filename)
 
     @staticmethod
     def prompt_formatter_mixtral():

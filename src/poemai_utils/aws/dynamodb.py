@@ -439,12 +439,20 @@ class DynamoDB:
             for item in page["Items"]:
                 yield item
 
-    def get_paginated_items_by_pk(self, table_name, pk, limit=100):
+    def get_paginated_items_by_pk(
+        self, table_name, pk, limit=100, projection_expression=None
+    ):
+        args = {}
+
+        if projection_expression is not None:
+            args["projection_expression"] = projection_expression
+
         for item in self.get_paginated_items(
             table_name=table_name,
             key_condition_expression="pk = :pk",
             expression_attribute_values={":pk": {"S": pk}},
             limit=limit,
+            **args,
         ):
             yield self.item_to_dict(item)
 

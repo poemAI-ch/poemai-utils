@@ -1,4 +1,5 @@
 import logging
+from types import SimpleNamespace
 
 import numpy as np
 from poemai_utils.embeddings.embedder_base import EmbedderBase
@@ -8,7 +9,9 @@ _logger = logging.getLogger(__name__)
 
 
 class OpenAIEmbedder(EmbedderBase):
-    def __init__(self, model_name="text-embedding-ada-002", openai_api_key=None):
+    def __init__(
+        self, model_name="text-embedding-ada-002", openai_api_key=None, base_url=None
+    ):
         _logger.info(f"Start initializing OpenAIEmbedder with model {model_name}")
 
         try:
@@ -22,20 +25,32 @@ class OpenAIEmbedder(EmbedderBase):
 
         self.model_name = model_name
 
-        try:
-            openai_model_id_enum = OPENAI_MODEL(model_name)
-        except ValueError:
-            raise ValueError(f"Unknown model_id: {model_name}")
+        if base_url is None:
 
-        if API_TYPE.EMBEDDINGS not in openai_model_id_enum.api_types:
+            try:
+                openai_model_id_enum = OPENAI_MODEL(model_name)
+            except ValueError:
+                raise ValueError(f"Unknown model_id: {model_name}")
 
-            raise ValueError(f"Model {model_name} does not support embeddings")
+            if API_TYPE.EMBEDDINGS not in openai_model_id_enum.api_types:
 
-        self.openai_model = openai_model_id_enum
-        if openai_api_key is not None:
-            self.client = OpenAI(api_key=openai_api_key)
+                raise ValueError(f"Model {model_name} does not support embeddings")
+
+            self.openai_model = openai_model_id_enum
+            self.embeddings_dimensions = self.openai_model.embeddings_dimensions
+
         else:
-            raise Exception("OpenAI API key is required")
+            self.openai_model = SimpleNamespace(embeddings_dimensions=None)
+            self.embeddings_dimensions = None
+
+        openai_args = {}
+        if openai_api_key is not None:
+            openai_args["api_key"] = openai_api_key
+
+        if base_url is not None:
+            openai_args["base_url"] = base_url
+
+        self.client = OpenAI(**openai_args)
 
         _logger.info(f"Initialized OpenAIEmbedder with model {model_name}")
 
@@ -46,4 +61,4 @@ class OpenAIEmbedder(EmbedderBase):
         return embedding
 
     def embedding_dim(self):
-        return self.openai_model.embeddings_dimensions
+        return self.embeddings_dimensions

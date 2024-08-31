@@ -33,6 +33,9 @@ class OPENAI_MODEL(str, Enum):
                 return model
         raise ValueError(f"Unknown model_key: {model_key}")
 
+    def calc_model_key(self):
+        return "openai." + self.model_key
+
 
 add_enum_repr_attr(OPENAI_MODEL)
 

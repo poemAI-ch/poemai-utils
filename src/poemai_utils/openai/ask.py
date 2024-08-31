@@ -46,6 +46,7 @@ class Ask:
         disable_prompt_log=None,
         async_openai=None,
         check_token_count=False,
+        base_url=None,
     ):
         try:
             from openai import OpenAI
@@ -62,10 +63,15 @@ class Ask:
         else:
             self._openai_api_key = openai_api_key
 
+        openai_args = {}
+
         if openai_api_key is not None:
-            self.client = OpenAI(api_key=self._openai_api_key)
-        else:
-            self.client = OpenAI()
+            openai_args["api_key"] = self._openai_api_key
+
+        if base_url is not None:
+            openai_args["base_url"] = base_url
+
+        self.client = OpenAI(**openai_args)
 
         self.model = model
         openai.api_key = self._openai_api_key
@@ -110,6 +116,7 @@ class Ask:
         system_prompt=None,
         messages=None,
         json_mode=False,
+        additional_args=None,
     ):
         if not API_TYPE.CHAT_COMPLETIONS in self.model.api_types:
             raise ValueError(f"Model {self.model} does not support chat completions")
@@ -123,6 +130,9 @@ class Ask:
 
         if json_mode:
             args["response_format"] = {"type": "json_object"}
+
+        if additional_args is not None:
+            args.update(additional_args)
 
         try:
             response = (
@@ -198,6 +208,7 @@ class Ask:
         messages=None,
         metadata=None,
         json_mode=False,
+        additional_args=None,
     ):
         if metadata is None:
             metadata = {}
@@ -241,6 +252,7 @@ class Ask:
                     system_prompt,
                     messages,
                     json_mode=json_mode,
+                    additional_args=additional_args,
                 )
             elif API_TYPE.COMPLETIONS in self.model.api_types:
                 answer = self.ask_completion(
