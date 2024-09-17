@@ -157,13 +157,13 @@ class DynamoDB:
     ddb_type_deserializer = TypeDeserializerPoemai()
     ddb_type_serializer = TypeSerializer()
 
-    def __init__(self, config, dyanamodb_client=None, dynamodb_resource=None):
+    def __init__(self, config, dynamodb_client=None, dynamodb_resource=None):
         _logger.info(
             f"Initializing DynamoDB with config: REGION_NAME={config.REGION_NAME}"
         )
         self.region_name = config.REGION_NAME
-        if dyanamodb_client is not None:
-            self.dynamodb_client = dyanamodb_client
+        if dynamodb_client is not None:
+            self.dynamodb_client = dynamodb_client
         else:
             self.dynamodb_resource = boto3.resource(
                 "dynamodb", region_name=self.region_name
