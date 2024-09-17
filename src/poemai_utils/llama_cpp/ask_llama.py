@@ -1,15 +1,10 @@
 import asyncio
-import base64
-import json
 import logging
 from pathlib import Path
 from types import SimpleNamespace
-from typing import AsyncGenerator, Iterator
+from typing import AsyncGenerator
 
-import httpx
-import openai
-import sqlitedict
-from poemai_utils.basic_types_utils import linebreak, short_display
+from poemai_utils.basic_types_utils import linebreak
 from poemai_utils.utils_config import get_config_by_key
 
 _logger = logging.getLogger(__name__)

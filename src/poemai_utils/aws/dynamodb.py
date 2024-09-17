@@ -3,7 +3,7 @@ import logging
 from decimal import Clamped, Context, Inexact, Overflow, Rounded, Underflow
 
 import boto3
-from boto3.dynamodb.types import TypeDeserializer, TypeSerializer
+from boto3.dynamodb.types import TypeSerializer
 from botocore.exceptions import ClientError
 
 _logger = logging.getLogger(__name__)
@@ -157,15 +157,23 @@ class DynamoDB:
     ddb_type_deserializer = TypeDeserializerPoemai()
     ddb_type_serializer = TypeSerializer()
 
-    def __init__(self, config):
+    def __init__(self, config, dyanamodb_client=None, dynamodb_resource=None):
         _logger.info(
             f"Initializing DynamoDB with config: REGION_NAME={config.REGION_NAME}"
         )
         self.region_name = config.REGION_NAME
-        self.dynamodb_resource = boto3.resource(
-            "dynamodb", region_name=self.region_name
-        )
-        self.dynamodb_client = boto3.client("dynamodb", region_name=self.region_name)
+        if dyanamodb_client is not None:
+            self.dynamodb_client = dyanamodb_client
+        else:
+            self.dynamodb_resource = boto3.resource(
+                "dynamodb", region_name=self.region_name
+            )
+        if dynamodb_resource is not None:
+            self.dynamodb_resource = dynamodb_resource
+        else:
+            self.dynamodb_client = boto3.client(
+                "dynamodb", region_name=self.region_name
+            )
 
     def store_item(self, table_name, item):
         dynamodb_item = self.ddb_type_serializer.serialize(item)

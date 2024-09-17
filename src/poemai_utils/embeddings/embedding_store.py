@@ -1,5 +1,3 @@
-from hashlib import sha256
-
 import numpy as np
 from poemai_utils.embeddings.embedder_base import EmbedderBase
 from poemai_utils.embeddings.embedding_cache import EmbeddingCache

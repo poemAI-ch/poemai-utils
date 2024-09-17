@@ -1,15 +1,7 @@
-from enum import Enum
-
-from numpy import add
 from poemai_utils.embeddings.sentence_transformer_embedding_model import (
     SentenceTransformerEmbeddingModel,
 )
-from poemai_utils.enum_utils import (
-    add_enum_attrs,
-    add_enum_repr,
-    add_enum_repr_attr,
-    merge_enums,
-)
+from poemai_utils.enum_utils import add_enum_repr, merge_enums
 from poemai_utils.openai.openai_model import API_TYPE, OPENAI_MODEL
 
 

@@ -1,6 +1,5 @@
 def write_excel(filename, data):
-    from openpyxl import Workbook, load_workbook
-    from openpyxl.styles import Alignment, Font
+    from openpyxl import Workbook
 
     if not isinstance(data, list):
         raise ValueError("data must be a list")

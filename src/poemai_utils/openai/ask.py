@@ -5,7 +5,6 @@ from pathlib import Path
 
 import httpx
 import openai
-import sqlitedict
 from poemai_utils.basic_types_utils import linebreak, short_display
 from poemai_utils.openai.llm_answer_cache import LLMAnswerCache
 from poemai_utils.openai.openai_model import API_TYPE, OPENAI_MODEL

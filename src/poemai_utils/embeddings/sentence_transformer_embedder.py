@@ -1,5 +1,3 @@
-from enum import Enum
-
 from poemai_utils.embeddings.embedder_base import EmbedderBase
 from poemai_utils.embeddings.sentence_transformer_embedding_model import (
     SentenceTransformerEmbeddingModel,

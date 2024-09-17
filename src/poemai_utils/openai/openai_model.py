@@ -6,9 +6,10 @@ from poemai_utils.enum_utils import add_enum_attrs, add_enum_repr, add_enum_repr
 class OPENAI_MODEL(str, Enum):
     GPT_4_o = "gpt-4o"
     GPT_4_o_2024_05_13 = "gpt-4o-2024-05-13"
+    GPT_4_o_2024_08_06 = "gpt-4o-2024-08-06"
+    GPT_4_o_CHATGPT_LATEST = "chatgpt-4o-latest"
     GPT_4_o_MINI = "gpt-4o-mini"
     GPT_4_o_MINI_2024_07_18 = "gpt-4o-mini-2024-07-18"
-
     GPT_4_TURBO_2024_04_09 = "gpt-4-turbo-2024-04-09"
     GPT_4_TURBO = "gpt_4_turbo"
     GPT_4_TURBO_PREVIEW = "gpt-4-turbo-preview"
@@ -60,6 +61,20 @@ add_enum_attrs(
         },
         OPENAI_MODEL.GPT_4_o_2024_05_13: {
             "model_key": "gpt-4o-2024-05-13",
+            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "expensive": False,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+        },
+        OPENAI_MODEL.GPT_4_o_2024_08_06: {
+            "model_key": "gpt-4o-2024-08-06",
+            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "expensive": False,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+        },
+        OPENAI_MODEL.GPT_4_o_CHATGPT_LATEST: {
+            "model_key": "chatgpt-4o-latest",
             "api_types": [API_TYPE.CHAT_COMPLETIONS],
             "expensive": False,
             "supports_vision": True,
