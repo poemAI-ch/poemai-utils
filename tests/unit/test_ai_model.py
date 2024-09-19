@@ -172,3 +172,12 @@ def test_embedding_check():
     assert AIModel.GPT_4_o.is_embedding_model()
     assert not AIModel.GPT_4_o_2024_05_13.is_embedding_model()
     assert not AIModel.GPT_4_o_2024_08_06.is_embedding_model()
+
+
+def test_custom_embedding_model():
+
+    custom_model = {"name": "CUSTOM_EMBEDDING_MODEL", "api_types": ["EMBEDDINGS"]}
+
+    AIModel.register_realm([custom_model], "custom_realm")
+
+    assert AIModel.CUSTOM_EMBEDDING_MODEL.is_embedding_model()

@@ -90,9 +90,9 @@ class AIModel(metaclass=ModelMeta):
                 if not k.startswith("_") and not k == "name"
             }
             if "api_types" in additional_attrs:
-                additional_attrs["api_types"] = [
-                    AIApiType(api_type) for api_type in additional_attrs["api_types"]
-                ]
+                additional_attrs["api_types"] = cls._convert_to_api_types(
+                    additional_attrs["api_types"]
+                )
 
             _ = AIModel(enum_member.name, realm_id, **additional_attrs)
 
@@ -118,6 +118,10 @@ class AIModel(metaclass=ModelMeta):
         for model in models_list:
             name = model["name"]
             rest_attrs = {k: v for k, v in model.items() if k != "name"}
+            if "api_types" in rest_attrs:
+                rest_attrs["api_types"] = cls._convert_to_api_types(
+                    rest_attrs["api_types"]
+                )
 
             if name in cls._member_dict:
                 raise KeyError(f"Model {name} is already registered in the directory.")
@@ -128,7 +132,7 @@ class AIModel(metaclass=ModelMeta):
         cls._initialized_realm_ids.add(realm_id)
 
     @classmethod
-    def find_model(cls, model_key: str):
+    def find_model(cls, model_key: str) -> "AIModel":
         if "." in model_key:
             model_key = model_key.split(".")[-1]
         for model in cls:
@@ -146,3 +150,16 @@ class AIModel(metaclass=ModelMeta):
     def _clear(cls):
         cls._member_dict = {}
         cls._initialized_realm_ids = set()
+
+    @classmethod
+    def _convert_to_api_types(cls, api_types):
+        retval = []
+        for api_type in api_types:
+            if isinstance(api_type, AIApiType):
+                retval.append(api_type)
+            else:
+                if "." in api_type:
+                    api_type = api_type.split(".")[-1]
+                api_type = api_type.upper()
+                retval.append(AIApiType[api_type])
+        return retval
