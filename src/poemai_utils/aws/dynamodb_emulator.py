@@ -150,6 +150,7 @@ class DynamoDBEmulator:
         KeyConditionExpression,
         ExpressionAttributeValues,
         ProjectionExpression=None,
+        limit=10000,
     ):
         """A very simplistic implementation for DynamoDB query operation. It only supports
         equality and begins_with operators in the KeyConditionExpression. It does not
@@ -188,6 +189,10 @@ class DynamoDBEmulator:
                 )  # Get the value from dict e.g., {"S": "some_value"}
                 parsed_conditions[i] = (key, operator, value)
 
+        _logger.info(
+            f"Querying table: {TableName}, parsed conditions: {parsed_conditions}"
+        )
+
         # Perform full table scan and filter results
         results = []
         for k, v in self.data_table.items():
@@ -216,10 +221,34 @@ class DynamoDBEmulator:
 
         results = {"Items": [DynamoDB.dict_to_item(item) for item in results]}
 
-        _logger.info(f"Query results: {json.dumps(results, indent=2)}")
+        _logger.info(f"Query results: {json.dumps(results, indent=2, default=str)}")
 
         return results
 
     def item_exists(self, table_name, pk, sk):
         composite_key = self._get_composite_key(table_name, pk, sk)
         return composite_key in self.data_table
+
+    def get_paginated_items(
+        self,
+        table_name,
+        key_condition_expression,
+        expression_attribute_values,
+        projection_expression=None,
+        limit=100,
+        index_name=None,
+    ):
+        # we ignore the index and just do a full table scan
+        for i, item in enumerate(
+            self.query(
+                table_name,
+                key_condition_expression,
+                expression_attribute_values,
+                projection_expression,
+                limit=limit,
+            )["Items"]
+        ):
+            if i >= limit:
+                break
+
+            yield item

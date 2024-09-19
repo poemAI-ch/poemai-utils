@@ -181,3 +181,12 @@ def test_custom_embedding_model():
     AIModel.register_realm([custom_model], "custom_realm")
 
     assert AIModel.CUSTOM_EMBEDDING_MODEL.is_embedding_model()
+
+    custom_model_2 = {
+        "name": "CUSTOM_EMBEDDING_MODEL_2",
+        "api_types": ["AIApiType.embeddings"],
+    }
+
+    AIModel.register_realm([custom_model_2], "custom_realm_2")
+
+    assert AIModel.CUSTOM_EMBEDDING_MODEL_2.is_embedding_model()
