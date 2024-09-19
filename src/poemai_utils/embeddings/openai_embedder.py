@@ -2,8 +2,9 @@ import logging
 from types import SimpleNamespace
 
 import numpy as np
+from poemai_utils.ai_model import AIApiType
 from poemai_utils.embeddings.embedder_base import EmbedderBase
-from poemai_utils.openai.openai_model import API_TYPE, OPENAI_MODEL
+from poemai_utils.openai.openai_model import OPENAI_MODEL
 
 _logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ class OpenAIEmbedder(EmbedderBase):
             except ValueError:
                 raise ValueError(f"Unknown model_id: {model_name}")
 
-            if API_TYPE.EMBEDDINGS not in openai_model_id_enum.api_types:
+            if AIApiType.EMBEDDINGS not in openai_model_id_enum.api_types:
 
                 raise ValueError(f"Model {model_name} does not support embeddings")
 

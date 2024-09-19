@@ -1,6 +1,7 @@
 from enum import Enum
 
-from poemai_utils.enum_utils import add_enum_attrs, add_enum_repr, add_enum_repr_attr
+from poemai_utils.ai_model import AIApiType, AIModel
+from poemai_utils.enum_utils import add_enum_attrs, add_enum_repr_attr
 
 
 class OPENAI_MODEL(str, Enum):
@@ -37,157 +38,152 @@ class OPENAI_MODEL(str, Enum):
     def calc_model_key(self):
         return "openai." + self.model_key
 
+    @classmethod
+    def register_ai_models(cls):
+        AIModel.add_enum_members(cls, "openai")
+
 
 add_enum_repr_attr(OPENAI_MODEL)
 
-
-class API_TYPE(Enum):
-    COMPLETIONS = "completions"
-    CHAT_COMPLETIONS = "chat_completions"
-    EMBEDDINGS = "embeddings"
-    MODERATIONS = "moderations"
-
-
-add_enum_repr(API_TYPE)
 
 add_enum_attrs(
     {
         OPENAI_MODEL.GPT_4_o: {
             "model_key": "gpt-4o",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": False,
             "supports_vision": True,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_4_o_2024_05_13: {
             "model_key": "gpt-4o-2024-05-13",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": False,
             "supports_vision": True,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_4_o_2024_08_06: {
             "model_key": "gpt-4o-2024-08-06",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": False,
             "supports_vision": True,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_4_o_CHATGPT_LATEST: {
             "model_key": "chatgpt-4o-latest",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": False,
             "supports_vision": True,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_4_TURBO: {
             "model_key": "gpt-4-0125-preview",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": True,
             "supports_vision": False,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_4_TURBO_2024_04_09: {
             "model_key": "gpt-4-turbo-2024-04-09",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": True,
             "supports_vision": True,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_4_TURBO_PREVIEW: {
             "model_key": "gpt-4-turbo-preview",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": True,
             "supports_vision": False,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_4_0125_PREVIEW: {
             "model_key": "gpt-4-0125-preview",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": True,
             "supports_vision": False,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_4_TURBO_1106_PREVIEW: {
             "model_key": "gpt-4-1106-preview",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": True,
             "supports_vision": False,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_4_VISION_PREVIEW: {
             "model_key": "gpt-4-vision-preview",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": True,
             "supports_vision": True,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_3_5_TURBO: {
             "model_key": "gpt-3.5-turbo",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": False,
             "supports_vision": False,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_3_5_TURBO_1106: {
             "model_key": "gpt-3.5-turbo-1106",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": False,
             "supports_vision": False,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_3_5_TURBO_16k: {
             "model_key": "gpt-3.5-turbo-16k",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": True,
             "supports_vision": False,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_3_5_TURBO_0125: {
             "model_key": "gpt-3.5-turbo-0125",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": True,
             "supports_vision": False,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_3_5_TURBO_0613: {
             "model_key": "gpt-3.5-turbo-0613",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": True,
             "supports_vision": False,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.ADA_002_EMBEDDING: {
             "model_key": "text-embedding-ada-002",
-            "api_types": [API_TYPE.EMBEDDINGS],
+            "api_types": [AIApiType.EMBEDDINGS],
             "expensive": False,
             "supports_vision": False,
             "embeddings_dimensions": 1536,
         },
         OPENAI_MODEL.TEXT_EMBEDDING_3_LARGE: {
             "model_key": "text-embedding-3-large",
-            "api_types": [API_TYPE.EMBEDDINGS],
+            "api_types": [AIApiType.EMBEDDINGS],
             "expensive": False,
             "supports_vision": False,
             "embeddings_dimensions": 3072,
         },
         OPENAI_MODEL.TEXT_EMBEDDING_3_SMALL: {
             "model_key": "text-embedding-3-small",
-            "api_types": [API_TYPE.EMBEDDINGS],
+            "api_types": [AIApiType.EMBEDDINGS],
             "expensive": False,
             "supports_vision": False,
             "embeddings_dimensions": 1536,
         },
         OPENAI_MODEL.GPT_4_o_MINI: {
             "model_key": "gpt-4o-mini",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": False,
             "supports_vision": True,
             "embeddings_dimensions": None,
         },
         OPENAI_MODEL.GPT_4_o_MINI_2024_07_18: {
             "model_key": "gpt-4o-mini-2024-07-18",
-            "api_types": [API_TYPE.CHAT_COMPLETIONS],
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": False,
             "supports_vision": True,
             "embeddings_dimensions": None,

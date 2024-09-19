@@ -5,9 +5,10 @@ from pathlib import Path
 
 import httpx
 import openai
+from poemai_utils.ai_model import AIApiType
 from poemai_utils.basic_types_utils import linebreak, short_display
 from poemai_utils.openai.llm_answer_cache import LLMAnswerCache
-from poemai_utils.openai.openai_model import API_TYPE, OPENAI_MODEL
+from poemai_utils.openai.openai_model import OPENAI_MODEL
 from poemai_utils.utils_config import get_config_by_key
 
 _logger = logging.getLogger(__name__)
@@ -117,7 +118,7 @@ class Ask:
         json_mode=False,
         additional_args=None,
     ):
-        if not API_TYPE.CHAT_COMPLETIONS in self.model.api_types:
+        if not AIApiType.CHAT_COMPLETIONS in self.model.api_types:
             raise ValueError(f"Model {self.model} does not support chat completions")
 
         message_list = self._calculate_messages_for_chat(
@@ -179,7 +180,7 @@ class Ask:
             print(f"Warning: system_prompt is not supported for {self.model}")
         if messages is not None:
             print(f"Warning: messages is not supported for {self.model}")
-        if API_TYPE.COMPLETIONS not in self.model.api_types:
+        if AIApiType.COMPLETIONS not in self.model.api_types:
             raise ValueError(f"Model {self.model} does not support completions")
         try:
             response = self.client.completions.create(
@@ -241,7 +242,7 @@ class Ask:
             _logger.debug(
                 f"Cache miss for for model {self.model} cache_key {cache_key}"
             )
-            if API_TYPE.CHAT_COMPLETIONS in self.model.api_types:
+            if AIApiType.CHAT_COMPLETIONS in self.model.api_types:
                 answer = self.ask_chat(
                     prompt,
                     temperature,
@@ -253,7 +254,7 @@ class Ask:
                     json_mode=json_mode,
                     additional_args=additional_args,
                 )
-            elif API_TYPE.COMPLETIONS in self.model.api_types:
+            elif AIApiType.COMPLETIONS in self.model.api_types:
                 answer = self.ask_completion(
                     prompt,
                     temperature,
@@ -391,7 +392,7 @@ class Ask:
             if self.raise_on_cache_miss:
                 raise ValueError(cache_miss_message)
             _logger.info(cache_miss_message)
-            if API_TYPE.CHAT_COMPLETIONS in self.model.api_types:
+            if AIApiType.CHAT_COMPLETIONS in self.model.api_types:
                 answer = ""
                 async for part in self.async_openai.ask_chat_async(
                     temperature,
