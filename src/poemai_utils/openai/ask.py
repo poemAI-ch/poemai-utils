@@ -515,7 +515,9 @@ class AskGPT_3_5_TURBO(Ask):
 
 
 class AsyncOpenai:
-    def __init__(self, model, openai_api_key, check_token_count=False, base_url=None):
+    def __init__(
+        self, model, openai_api_key, check_token_count=False, base_url=None, timeout=60
+    ):
 
         self._openai_api_key = openai_api_key
         self.model = model
@@ -526,8 +528,9 @@ class AsyncOpenai:
         if base_url is None:
             self.base_url = OPENAI_API_URL
         else:
-            self.base_url = base_url
+            self.base_url = base_url + "/v1/chat/completions"
         self.httpx = httpx  # for testing, can be overridden after instantiation
+        self.timeout = timeout
 
     async def ask_chat_async(
         self,
@@ -555,14 +558,24 @@ class AsyncOpenai:
         full_text = ""
         usage_data = None
 
-        async with self.httpx.AsyncClient() as client:
+        timeout_config = httpx.Timeout(
+            self.timeout
+        )  # timeout for connect, read, write, and pool
+
+        async with self.httpx.AsyncClient(timeout=timeout_config) as client:
             if self.check_token_count:
                 self.last_token_statistics = None
             async with client.stream(
                 "POST", self.base_url, headers=headers, content=json.dumps(data)
             ) as response:
                 if response.status_code != 200:
-                    raise RuntimeError("OpenAI API is unavailable.")
+                    response_text = await response.aread()
+                    _logger.info(
+                        f"response.status_code: {response.status_code} on url {self.base_url}, repsonse text: {response_text}"
+                    )
+                    raise RuntimeError(
+                        "OpenAI API is unavailable at url " + self.base_url
+                    )
 
                 buffer = ""
                 async for chunk_text in response.aiter_text():

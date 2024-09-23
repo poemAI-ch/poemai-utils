@@ -63,12 +63,13 @@ async def test_async_ask():
     # Set the mocked httpx as the httpx_override in AsyncOpenai
     openai = MagicMock()
     BASE_URL = "https://example.com"
+    FULL_BASE_URL = f"{BASE_URL}/v1/chat/completions"
     ask = Ask(openai=openai, base_url=BASE_URL)
     ask.async_openai.httpx = httpx_mock
 
     # Check if the base_url is correctly overridden
     assert ask.base_url == BASE_URL
-    assert ask.async_openai.base_url == BASE_URL
+    assert ask.async_openai.base_url == FULL_BASE_URL
 
     # Collect results from the async generator
     results = []
@@ -86,4 +87,4 @@ async def test_async_ask():
     assert async_client_mock.stream.call_count == 1
 
     assert async_client_mock.stream.call_args[0][0] == "POST"
-    assert async_client_mock.stream.call_args[0][1] == BASE_URL
+    assert async_client_mock.stream.call_args[0][1] == FULL_BASE_URL
