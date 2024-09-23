@@ -70,6 +70,9 @@ class Ask:
 
         if base_url is not None:
             openai_args["base_url"] = base_url
+            self.base_url = base_url
+        else:
+            self.base_url = None
 
         self.client = OpenAI(**openai_args)
 
@@ -89,6 +92,7 @@ class Ask:
                 model=self.model,
                 openai_api_key=self._openai_api_key,
                 check_token_count=check_token_count,
+                base_url=self.base_url,
             )
         else:
             self.async_openai = async_openai
@@ -511,11 +515,19 @@ class AskGPT_3_5_TURBO(Ask):
 
 
 class AsyncOpenai:
-    def __init__(self, model, openai_api_key, check_token_count=False):
+    def __init__(self, model, openai_api_key, check_token_count=False, base_url=None):
+
         self._openai_api_key = openai_api_key
         self.model = model
         self.check_token_count = check_token_count
         self.last_token_statistics = None
+
+        OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
+        if base_url is None:
+            self.base_url = OPENAI_API_URL
+        else:
+            self.base_url = base_url
+        self.httpx = httpx  # for testing, can be overridden after instantiation
 
     async def ask_chat_async(
         self,
@@ -524,7 +536,6 @@ class AsyncOpenai:
         stop=None,
         messages=None,
     ):
-        OPENAI_API_URL = "https://api.openai.com/v1/chat/completions"
 
         headers = {
             "Content-Type": "application/json",
@@ -544,11 +555,11 @@ class AsyncOpenai:
         full_text = ""
         usage_data = None
 
-        async with httpx.AsyncClient() as client:
+        async with self.httpx.AsyncClient() as client:
             if self.check_token_count:
                 self.last_token_statistics = None
             async with client.stream(
-                "POST", OPENAI_API_URL, headers=headers, content=json.dumps(data)
+                "POST", self.base_url, headers=headers, content=json.dumps(data)
             ) as response:
                 if response.status_code != 200:
                     raise RuntimeError("OpenAI API is unavailable.")
