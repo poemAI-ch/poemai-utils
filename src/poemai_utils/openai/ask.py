@@ -139,17 +139,25 @@ class Ask:
             args.update(additional_args)
 
         try:
-            response = (
-                self.client.chat.completions.create(
-                    messages=message_list,
-                    temperature=temperature,
-                    max_tokens=max_tokens,
-                    model=self.model.model_key,
-                    **args,
-                )
-                .choices[0]
-                .message.content
+
+            if max_tokens is not None:
+                if self.model.requires_max_completion_tokens:
+                    args["max_completion_tokens"] = max_tokens
+                else:
+                    args["max_tokens"] = max_tokens
+
+            _logger.debug(
+                f"Calling chat completions with model {self.model}, messages: {message_list}, temperature: {temperature}, args: {args}"
             )
+            response_raw = self.client.chat.completions.create(
+                messages=message_list,
+                temperature=temperature,
+                model=self.model.model_key,
+                **args,
+            )
+            _logger.debug(f"Response raw: {response_raw}")
+            response = response_raw.choices[0].message.content
+
         except Exception as e:
             _logger.error(e)
             raise e
@@ -549,11 +557,14 @@ class AsyncOpenai:
             "model": self.model.model_key,
             "messages": messages,
             "temperature": temperature,
-            "max_tokens": max_tokens,
             "stop": stop,
             "stream": True,
             "stream_options": {"include_usage": True},
         }
+        if self.model.requires_max_completion_tokens:
+            data["max_completion_tokens"] = max_tokens
+        else:
+            data["max_tokens"] = max_tokens
 
         full_text = ""
         usage_data = None

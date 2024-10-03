@@ -58,8 +58,11 @@ def add_enum_attrs(attr_dict):
         else:
             if set(enum_attrs.keys()) != attr_set:
 
+                missing = attr_set - set(enum_attrs.keys())
+                too_much = set(enum_attrs.keys()) - attr_set
+
                 raise ValueError(
-                    f"All enums must have the same attributes. {enum_key} does not have the same attributes as others."
+                    f"All enums must have the same attributes. {enum_key} does not have the same attributes as others, missing: {missing}, new: {too_much}"
                 )
         for attr_key, value in enum_attrs.items():
             setattr(enum_key, attr_key, value)
