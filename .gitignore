@@ -52,3 +52,4 @@ MANIFEST
 .venv*/
 .conda*/
 .python-version
+.ai_code_editor_tasks.json

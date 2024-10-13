@@ -121,6 +121,7 @@ class Ask:
         messages=None,
         json_mode=False,
         additional_args=None,
+        structured_json_schema=None,
     ):
         if not AIApiType.CHAT_COMPLETIONS in self.model.api_types:
             raise ValueError(f"Model {self.model} does not support chat completions")
@@ -134,6 +135,13 @@ class Ask:
 
         if json_mode:
             args["response_format"] = {"type": "json_object"}
+
+        # add later
+        # elif structured_json_schema is not None:
+        #     args["response_format"] = {
+        #         "type": "json_schema",
+        #         "json_schema": structured_json_schema,
+        #     }
 
         if additional_args is not None:
             args.update(additional_args)

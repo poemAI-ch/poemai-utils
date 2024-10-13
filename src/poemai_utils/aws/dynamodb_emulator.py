@@ -162,12 +162,20 @@ class DynamoDBEmulator:
         def evaluate_condition(item, key, operator, value):
             if operator == "=" and item.get(key) == value:
                 return True
-            elif operator == "begins_with" and item.get(key, "").startswith(value):
+            if operator == ">=" and item.get(key) >= value:
+                return True
+            if operator == "<=" and item.get(key) <= value:
+                return True
+            if operator == ">" and item.get(key) > value:
+                return True
+            if operator == "<" and item.get(key) < value:
+                return True
+            if operator == "begins_with" and item.get(key, "").startswith(value):
                 return True
             return False
 
         # Parse the KeyConditionExpression
-        conditions = KeyConditionExpression.split(" and ")
+        conditions = KeyConditionExpression.lower().split(" and ")
         parsed_conditions = []
         for condition in conditions:
             if "begins_with" in condition:
@@ -175,6 +183,18 @@ class DynamoDBEmulator:
                     r"begins_with\((\w+), :(\w+)\)", condition
                 ).groups()
                 operator = "begins_with"
+            elif ">=" in condition:
+                key, value = re.match(r"(\w+) >= :(\w+)", condition).groups()
+                operator = ">="
+            elif "<=" in condition:
+                key, value = re.match(r"(\w+) <= :(\w+)", condition).groups()
+                operator = "<="
+            elif ">" in condition:
+                key, value = re.match(r"(\w+) > :(\w+)", condition).groups()
+                operator = ">"
+            elif "<" in condition:
+                key, value = re.match(r"(\w+) < :(\w+)", condition).groups()
+                operator = "<"
             else:
                 key, value = re.match(r"(\w+) = :(\w+)", condition).groups()
                 operator = "="
