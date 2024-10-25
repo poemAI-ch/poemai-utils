@@ -50,6 +50,16 @@ class DynamoDBEmulator:
 
             composite_key = self._get_composite_key(table_name, pk, sk)
 
+            # check if the item does not contain unserializeable daata
+            assert isinstance(item, dict), f"Item must be a dict, got {type(item)}"
+            try:
+                _ = json.dumps(item)
+            except Exception as e:
+                _logger.warning(
+                    f"Item {item} is not serializable: {e}, continuing anyway, will probably crash later",
+                    exc_info=True,
+                )
+
             # Store the item
             self.data_table[composite_key] = item
 
@@ -209,7 +219,7 @@ class DynamoDBEmulator:
                 )  # Get the value from dict e.g., {"S": "some_value"}
                 parsed_conditions[i] = (key, operator, value)
 
-        _logger.info(
+        _logger.debug(
             f"Querying table: {TableName}, parsed conditions: {parsed_conditions}"
         )
 
@@ -241,7 +251,7 @@ class DynamoDBEmulator:
 
         results = {"Items": [DynamoDB.dict_to_item(item) for item in results]}
 
-        _logger.info(f"Query results: {json.dumps(results, indent=2, default=str)}")
+        _logger.debug(f"Query results: {json.dumps(results, indent=2, default=str)}")
 
         return results
 

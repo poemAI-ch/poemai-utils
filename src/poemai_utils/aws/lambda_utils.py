@@ -1,4 +1,9 @@
 import json
+import logging
+import random
+import time
+
+_logger = logging.getLogger(__name__)
 
 
 def extract_parameters(event, context):
@@ -51,4 +56,47 @@ def extract_parameters(event, context):
     if not params and "body" in event:
         return json.loads(event["body"])
 
-    return params
+    # Return the original event if no parameters were found (direct invocation fallback)
+    return params if params else event
+
+
+def invoke_lambda_with_backoff(
+    lambda_client, function_name, payload, max_attempts=8, initial_delay=1
+):
+    for attempt in range(max_attempts):
+        try:
+            response = lambda_client.invoke(
+                FunctionName=function_name,
+                InvocationType="RequestResponse",
+                Payload=json.dumps(payload),
+            )
+            # Read the payload from the response
+            response_payload = (
+                response["Payload"].read().decode("utf-8")
+            )  # Decoding from bytes to string
+            try:
+                response_payload = json.loads(
+                    response_payload
+                )  # Convert string to JSON if possible
+            except json.JSONDecodeError:
+                pass  # Keep as string if it's not JSON
+
+            response["Payload"] = (
+                response_payload  # Replace the StreamingBody with the actual content
+            )
+            return response
+        except lambda_client.exceptions.TooManyRequestsException:
+            if attempt < max_attempts - 1:
+                sleep_time = initial_delay * (2**attempt) + random.uniform(0, 1)
+                time.sleep(sleep_time)
+                _logger.debug(
+                    f"Rate exceeded, retrying after {sleep_time:.2f} seconds..."
+                )
+            else:
+                _logger.error(
+                    "Max retry attempts reached, unable to invoke lambda function."
+                )
+                raise  # Re-raise the exception after the last attempt
+        except Exception as e:
+            _logger.error(f"An error occurred: {str(e)}", exc_info=True)
+            raise

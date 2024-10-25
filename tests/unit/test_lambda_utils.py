@@ -1,6 +1,7 @@
 import json
+from unittest.mock import MagicMock, patch
 
-from poemai_utils.aws.lambda_utils import extract_parameters
+from poemai_utils.aws.lambda_utils import extract_parameters, invoke_lambda_with_backoff
 
 
 def test_extract_parameters():
@@ -67,6 +68,11 @@ def test_extract_parameters():
     assert extract_parameters(event, None) == "hello world"
 
 
+def test_direct_invocation_event():
+    event = {"name": "Alice", "age": 30}
+    assert extract_parameters(event, None) == event
+
+
 def test_event_bridge_event():
     event = {
         "version": "0",
@@ -88,3 +94,37 @@ def test_event_bridge_event():
     assert parameters["resources"] == [
         "arn:aws:events:us-west-2:123456789012:rule/MyRule"
     ]
+
+
+def test_async_with_backoff():
+    # Create the mock lambda client
+    lambda_client = MagicMock()
+
+    # Define a custom TooManyRequestsException on the mock
+    TooManyRequestsException = type("TooManyRequestsException", (Exception,), {})
+    lambda_client.exceptions.TooManyRequestsException = TooManyRequestsException
+
+    # Configure `invoke` to raise TooManyRequestsException on the first two calls, then return a success response
+    lambda_client.invoke.side_effect = [
+        TooManyRequestsException("Rate exceeded"),
+        TooManyRequestsException("Rate exceeded"),
+        {
+            "Payload": MagicMock(
+                read=MagicMock(
+                    return_value=json.dumps({"status": "success"}).encode("utf-8")
+                )
+            )
+        },
+    ]
+
+    # Run the function, patching sleep to avoid delays in the test
+    with patch("time.sleep", return_value=None):
+        response = invoke_lambda_with_backoff(
+            lambda_client, "function_name", {"name": "Alice", "age": 30}
+        )
+
+    # Assertions to verify the response and that backoff mechanism worked
+    assert response["Payload"]["status"] == "success"
+    assert (
+        lambda_client.invoke.call_count == 3
+    )  # Should call invoke 3 times (2 retries)
