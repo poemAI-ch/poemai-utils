@@ -61,13 +61,18 @@ def extract_parameters(event, context):
 
 
 def invoke_lambda_with_backoff(
-    lambda_client, function_name, payload, max_attempts=8, initial_delay=1
+    lambda_client,
+    function_name,
+    payload,
+    max_attempts=8,
+    initial_delay=1,
+    invocation_type="RequestResponse",
 ):
     for attempt in range(max_attempts):
         try:
             response = lambda_client.invoke(
                 FunctionName=function_name,
-                InvocationType="RequestResponse",
+                InvocationType=invocation_type,
                 Payload=json.dumps(payload),
             )
             # Read the payload from the response
