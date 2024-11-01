@@ -68,6 +68,7 @@ def invoke_lambda_with_backoff(
     initial_delay=1,
     invocation_type="RequestResponse",
 ):
+    _logger.info(f"Got lambda_client: {lambda_client}")
     for attempt in range(max_attempts):
         try:
             response = lambda_client.invoke(
