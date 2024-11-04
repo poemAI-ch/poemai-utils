@@ -116,6 +116,25 @@ class DynamoDBEmulator:
             retval["sk"] = sk
         return retval
 
+    def batch_get_items_by_pk_sk(self, table_name, pk_sk_list):
+        _logger.info(
+            f"Batch get items by pk_sk list {pk_sk_list} from table {table_name}"
+        )
+        result_list = []
+        for key_spec in pk_sk_list:
+            pk = key_spec["pk"]["S"]
+            sk = key_spec["sk"]["S"]
+            item_found = self.get_item_by_pk_sk(table_name, pk, sk)
+            if item_found is not None:
+                result_list.append(item_found)
+                _logger.info(
+                    f"Found item {item_found} for key spec {key_spec}, pk={pk}, sk={sk}"
+                )
+            else:
+                _logger.info(f"Item not found for key spec {key_spec} pk={pk}, sk={sk}")
+
+        return result_list
+
     def get_item_by_pk(self, table_name, pk):
         composite_key = self._get_composite_key(table_name, pk, "")
         retval = self.data_table.get(composite_key, None)

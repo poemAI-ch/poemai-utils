@@ -11,6 +11,7 @@ It leverages 'awslambdarie' to support running multiple functions under their de
 requests to appropriate host/port configured via environment variables.
 It solves the naming constraint by allowing each lambda emulation to operate with its function name via URL parameter,
 while internally dispatching to the same function name accepted under the context of 'awslambdarie'.
+This makes it possible to locally offer multiple locally emulated lambda functions, and use the boto3 client 'invoke' functionality to call the local lambda functions.
 
 Functions:
     app_setup(): Sets up the FastAPI application, configures the routing to handle function invocations.
@@ -21,7 +22,7 @@ Usage:
 
 Example:
     python local_lambda_runtime.pyExample of Configuring Multiple Lambda Functions:
-To configure multiple AWS Lambda functions, you can set environment variables for each function, mapping "Named Function URLs" to specific endpoints managed by the awslambdarie containers.
+    To configure multiple AWS Lambda functions, you can set environment variables for each function, mapping "Named Function URLs" to specific endpoints managed by the awslambdarie containers.
 
     export LAMBDA_FUNCTION_INVOKE_URL_FUNCTION_NAME="http://localhost:PORT"
 
@@ -43,6 +44,16 @@ maps to:
     http://localhost:26979/2015-03-31/functions/function/invocations
 assuming the awslambdarie container for "manager" was started on port 26979.
 
+To use boto3 to invoke the local lambda functions, you can use the following code snippet:
+
+    import boto3
+
+    client = boto3.client("lambda", endpoint_url="http://localhost:26763")
+    response = client.invoke(
+        FunctionName="assistant",
+        InvocationType="RequestResponse",
+        Payload=b'{"key": "value"}',
+    )
 
 """
 
