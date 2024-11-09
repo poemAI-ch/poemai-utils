@@ -32,9 +32,9 @@
         }
     },
     "poemai-utils/setup.py": {
-        "checksum": "0660e8ba70d2e897d758b0fc940d3c1e59c3893dab5d283b4132ffead4b612b9",
+        "checksum": "4f0ae0201377786aa11859c6b3a57d0f52ac82c664d418d4986d2e21fc1f5e2e",
         "summary": {
-            "file_content_summary": "This setup.py file is used for configuring the poemai-utils Python project. It utilizes setuptools to define the project version and handle the build process. The file includes error handling to ensure that the necessary packages are updated for a successful build.",
+            "file_content_summary": "This setup.py file is used to configure the poemai-utils Python project. It utilizes setuptools to define the project version and handle the build process. The file includes error handling to ensure that the necessary packages are updated for a successful build.",
             "file_keywords": [
                 "setup",
                 "setuptools",
@@ -516,15 +516,16 @@
         }
     },
     "poemai-utils/src/poemai_utils/simple.py": {
-        "checksum": "bac1eb3746f72c6ee419b6bc1095eed930cb9061e2120eebc182ba6d64c28ffd",
+        "checksum": "f6b31ff8f850e39cb376c61ad33158e04b524bc8edcbab45809bff05f2a99edf",
         "summary": {
-            "file_content_summary": "This file imports various components related to embeddings and OpenAI functionalities, including analyzers for cross and self-similarity, an embedding cache, and an OpenAI embedder. It also imports a model and an asking mechanism for OpenAI, indicating its role in handling and processing embeddings and interactions with OpenAI's services.",
+            "file_content_summary": "This file imports various components related to embeddings and OpenAI interactions, including analyzers for cross and self-similarity, an embedding cache, and utilities for YAML conversion. It appears to facilitate the integration of OpenAI models and manage embeddings, likely serving as a utility module for handling AI-related tasks.",
             "file_keywords": [
                 "embeddings",
                 "OpenAI",
                 "similarity analysis",
                 "embedding cache",
-                "AI model"
+                "YAML utilities",
+                "AI integration"
             ],
             "file_dependencies": [
                 "poemai-utils/src/poemai_utils/basic_types_utils.py",
@@ -533,7 +534,8 @@
                 "poemai-utils/src/poemai_utils/embeddings/openai_embedder.py",
                 "poemai-utils/src/poemai_utils/embeddings/self_similarity_analyzer.py",
                 "poemai-utils/src/poemai_utils/openai/ask.py",
-                "poemai-utils/src/poemai_utils/openai/openai_model.py"
+                "poemai-utils/src/poemai_utils/openai/openai_model.py",
+                "poemai-utils/src/poemai_utils/yaml_utils.py"
             ],
             "relevance": "HIGH"
         }
@@ -604,24 +606,24 @@
         }
     },
     "poemai-utils/src/poemai_utils/embeddings/openai_embedder.py": {
-        "checksum": "3b278f075a7e4ecfe5aea749793d7c1288d24b44c89f916ef709ea7595fb6434",
+        "checksum": "ff067845240bdc3fe2ceea428d1d618d5455a1aabe59eb6a104d4e73d4b1283f",
         "summary": {
-            "file_content_summary": "This file defines the `OpenAIEmbedder` class, which is responsible for generating embeddings using OpenAI's API. It initializes with a specified model and API key, checks model compatibility, and provides methods to calculate embeddings and retrieve the embedding dimensions.",
+            "file_content_summary": "This file defines the `OpenAIEmbedder` class, which is responsible for generating embeddings using OpenAI's API. It initializes with a specified model and API key, checks model compatibility, and provides methods to calculate embeddings and retrieve embedding dimensions.",
             "file_keywords": [
                 "OpenAI",
                 "embeddings",
                 "API",
-                "embedding generation",
-                "Python",
-                "class",
-                "model initialization"
+                "model",
+                "embedding dimensions",
+                "AIApiType",
+                "EmbedderBase"
             ],
+            "relevance": "HIGH",
             "file_dependencies": [
-                "poemai_utils.ai_model",
-                "poemai_utils.embeddings.embedder_base",
-                "poemai_utils.openai.openai_model"
-            ],
-            "relevance": "HIGH"
+                "poemai_utils/ai_model.py",
+                "poemai_utils/embeddings/embedder_base.py",
+                "poemai_utils/openai/openai_model.py"
+            ]
         }
     },
     "poemai-utils/src/poemai_utils/embeddings/embedder_base.py": {
@@ -815,18 +817,18 @@
         }
     },
     "poemai-utils/src/poemai_utils/aws/dynamodb_emulator.py": {
-        "checksum": "958f870e2dc65dbc85b87ad68ad42b01b47a0b141500ece5298edd0e483d16ee",
+        "checksum": "339ce8726b3bce20ca112706734d073e6a28e222f5a3eacc02390cc353e57f4c",
         "summary": {
-            "file_content_summary": "The file defines a `DynamoDBEmulator` class that simulates a DynamoDB-like storage using SQLite. It provides methods for storing, retrieving, updating, and deleting items, along with handling versioning and composite keys. The class uses threading for concurrency control and supports batch operations and pagination.",
+            "file_content_summary": "The file defines a `DynamoDBEmulator` class that simulates a DynamoDB-like storage system using SQLite. It provides methods for storing, retrieving, updating, and deleting items, while handling composite keys and versioning. The class also includes thread safety and logging features for better data management.",
             "file_keywords": [
                 "DynamoDB",
                 "Emulator",
                 "SQLite",
                 "Data Storage",
-                "Concurrency",
+                "Item Management",
                 "Versioning",
-                "Composite Keys",
-                "Batch Operations"
+                "Thread Safety",
+                "Logging"
             ],
             "file_dependencies": [
                 "poemai-utils/src/poemai_utils/aws/dynamodb.py",
@@ -954,27 +956,28 @@
         }
     },
     "poemai-utils/src/poemai_utils/aws/local_lambda_runtime.py": {
-        "checksum": "91d51b1e2bba082fd2ee61112f741fbfb32e9c665317a41f0624ff13128d7e86",
+        "checksum": "ac6bd46eb4bbc12c52feffdc59a1d3bb0228fbb413c9d55908cfca6ea2d291c2",
         "summary": {
-            "file_content_summary": "This file implements a local AWS Lambda runtime using FastAPI, allowing the emulation of multiple Lambda functions in Docker. It sets up an application that forwards requests to the appropriate function based on environment variables, enabling local testing of Lambda functions with specified URLs.",
+            "file_content_summary": "This file implements a local AWS Lambda runtime using FastAPI, allowing multiple Lambda functions to be emulated via Docker. It sets up an HTTP server that forwards requests to the appropriate function based on environment variable configurations. The main components include the app setup function, request handling, and command-line argument parsing for server configuration.",
             "file_keywords": [
                 "AWS Lambda",
                 "FastAPI",
                 "Docker",
                 "local runtime",
                 "function invocation",
-                "environment variables"
+                "environment variables",
+                "boto3",
+                "HTTP server"
             ],
-            "relevance": "HIGH",
             "file_dependencies": [
                 "poemai-utils/src/poemai_utils/aws/lambda_utils.py",
                 "poemai-utils/src/poemai_utils/aws/__init__.py",
                 "poemai-utils/src/poemai_utils/aws/dynamodb.py",
                 "poemai-utils/src/poemai_utils/aws/dynamodb_emulator.py",
-                "poemai-utils/src/poemai_utils/aws/local_lambda_runtime.py",
                 "poemai-utils/src/poemai_utils/llama_cpp/__init__.py",
                 "poemai-utils/src/poemai_utils/openai/__init__.py"
-            ]
+            ],
+            "relevance": "HIGH"
         }
     },
     "poemai-utils/tests/unit/test_embedder_lean.py": {
@@ -996,7 +999,7 @@
         }
     },
     "poemai-utils/src/poemai_utils/state_machine.py": {
-        "checksum": "5c33aa80483655af5cbfb31fafb52a026e491472d86cfccf8a4a81003c985043",
+        "checksum": "8ae11994b931a6a96a677cf7c8bdb48342e55662c76a150aea26c37d653d2119",
         "summary": {
             "file_content_summary": "This file defines a lightweight state machine class for managing event-driven code. It allows for structured state transitions based on defined events, improving code maintainability. Key components include attributes for initial state, transitions, error handling, and logging, along with a method to process events and update the current state accordingly.",
             "file_keywords": [
@@ -1007,8 +1010,8 @@
                 "Python",
                 "dataclass"
             ],
-            "file_dependencies": [],
-            "relevance": "HIGH"
+            "relevance": "HIGH",
+            "file_dependencies": []
         }
     },
     "poemai-utils/src/poemai_utils/embeddings/openai_embedder_lean.py": {
@@ -1034,9 +1037,9 @@
         }
     },
     "poemai-utils/tests/unit/test_state_machine.py": {
-        "checksum": "ae21bbebd0b4037fab495c849388a74d368afa6d49811cbc941b741a549ff867",
+        "checksum": "15f81440c181c7233d822119ac982301fdc126b51e0db45ad9ede411b704e197",
         "summary": {
-            "file_content_summary": "This file contains unit tests for the StateMachine class from the poemai_utils module. It tests state transitions, implicit self-transitions, and error handling within the state machine. Each test checks the current state after processing specific events, ensuring the state machine behaves as expected under various conditions.",
+            "file_content_summary": "This file contains unit tests for the StateMachine class from the poemai_utils module. It tests state transitions, implicit self-transitions, and error handling within the state machine. Each test checks the current state after processing specific events, ensuring the state machine behaves as expected.",
             "file_keywords": [
                 "StateMachine",
                 "unit tests",
@@ -1044,8 +1047,48 @@
                 "error handling",
                 "pytest"
             ],
+            "relevance": "HIGH",
             "file_dependencies": [
                 "poemai-utils/src/poemai_utils/state_machine.py"
+            ]
+        }
+    },
+    "poemai-utils/src/poemai_utils/yaml_utils.py": {
+        "checksum": "ffd92f2966c455548268a97ddf4b0705ddcf101eca4f06d5376640dcf41d0ba4",
+        "summary": {
+            "file_content_summary": "This file defines a function `dict_to_yaml_string` that converts a dictionary into a YAML string format, ensuring multiline strings are represented using the '|' block style. It utilizes the `ruamel.yaml` library for YAML processing and includes a helper function to recursively handle multiline strings within the input data.",
+            "file_keywords": [
+                "YAML",
+                "dictionary",
+                "ruamel.yaml",
+                "multiline strings",
+                "StringIO",
+                "data conversion"
+            ],
+            "file_dependencies": [
+                "poemai-utils/src/poemai_utils/yaml_utils.py"
+            ],
+            "relevance": "HIGH"
+        }
+    },
+    "poemai-utils/src/poemai_utils/embeddings/simple.py": {
+        "checksum": "98200aa109d6dd9ad9154b1da7625017c63ad8e93a37cf830d202b0873aaa8f6",
+        "summary": {
+            "file_content_summary": "This file imports various classes related to embeddings and similarity analysis, including CrossSimilarityAnalyzer, SelfSimilarityAnalyzer, and OpenAIEmbedder. It also imports EmbeddingStore and EmbeddingCacheSqliteDict, indicating a focus on managing and analyzing embeddings, likely for AI or machine learning applications.",
+            "file_keywords": [
+                "embeddings",
+                "similarity analysis",
+                "OpenAI",
+                "embedding cache",
+                "AI model"
+            ],
+            "file_dependencies": [
+                "poemai-utils/src/poemai_utils/embeddings/cross_similarity_analyzer.py",
+                "poemai-utils/src/poemai_utils/embeddings/embedding_cache.py",
+                "poemai-utils/src/poemai_utils/embeddings/embedding_store.py",
+                "poemai-utils/src/poemai_utils/embeddings/openai_embedder.py",
+                "poemai-utils/src/poemai_utils/embeddings/self_similarity_analyzer.py",
+                "poemai-utils/src/poemai_utils/openai/openai_model.py"
             ],
             "relevance": "HIGH"
         }

@@ -4,7 +4,11 @@ import logging
 import re
 import threading
 
-from poemai_utils.aws.dynamodb import DynamoDB, VersionMismatchException
+from poemai_utils.aws.dynamodb import (
+    DynamoDB,
+    ItemAlreadyExistsException,
+    VersionMismatchException,
+)
 from sqlitedict import SqliteDict
 
 _logger = logging.getLogger(__name__)
@@ -70,6 +74,17 @@ class DynamoDBEmulator:
 
             self.index_table[index_key] = index_list
             self._commit()
+
+    def store_new_item(self, table_name, item, primary_key_name):
+        """Store an item only if it does not already exist."""
+        pk = item["pk"]
+        sk = item.get("sk", "")
+        composite_key = self._get_composite_key(table_name, pk, sk)
+        if composite_key in self.data_table:
+            raise ItemAlreadyExistsException(
+                f"Item with pk:{pk} and sk:{sk} already exists."
+            )
+        self.store_item(table_name, item)
 
     def update_versioned_item_by_pk_sk(
         self,

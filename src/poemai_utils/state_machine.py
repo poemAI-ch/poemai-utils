@@ -69,7 +69,7 @@ class StateMachine:
                 )
             elif self.error_state:
                 _logger.info(
-                    f"Transitioning from {self.current_state} to error state '{self.error_state}' due to event '{event}'"
+                    f"Transitioning from {self.current_state} to error state '{self.error_state}' due to event '{event}' -  no explicit transition defined"
                 )
             elif self.implicit_self_transitions:
                 _logger.info(

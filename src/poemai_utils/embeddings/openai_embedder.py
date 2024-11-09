@@ -27,11 +27,18 @@ class OpenAIEmbedder(EmbedderBase):
         self.model_name = model_name
 
         if base_url is None:
-
+            openai_model_id_enum = None
             try:
                 openai_model_id_enum = OPENAI_MODEL(model_name)
             except ValueError:
-                raise ValueError(f"Unknown model_id: {model_name}")
+                pass
+
+            if openai_model_id_enum is None:
+                try:
+                    openai_model_id_enum = OPENAI_MODEL[model_name]
+                    self.model_name = openai_model_id_enum.model_key
+                except KeyError:
+                    raise ValueError(f"Unknown model name {model_name}")
 
             if AIApiType.EMBEDDINGS not in openai_model_id_enum.api_types:
 

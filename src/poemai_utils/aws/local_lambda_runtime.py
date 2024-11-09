@@ -85,6 +85,10 @@ def app_setup():
         payload = await request.json()
         # Get the base URL for the specified function
         base_url = get_function_base_url(function_name)
+        if base_url is None:
+            raise HTTPException(
+                status_code=404, detail=f"Function {function_name} not found."
+            )
         # Build the full URL for invocation
         invocation_url = f"{base_url}/2015-03-31/functions/function/invocations"
         _logger.info(f"Forwarding request to {invocation_url}")
