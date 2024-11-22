@@ -6,11 +6,10 @@ import logging
 import re
 from collections import defaultdict
 from functools import wraps
+from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
 _logger = logging.getLogger(__name__)
-
-from box import Box
 
 
 def snake_to_header(name: str) -> str:
@@ -389,7 +388,6 @@ class LambdaApiLight:
 
     @property
     def routes(self):
-
         route_info = []
         for router in self.routers:
             by_path = defaultdict(list)
@@ -398,6 +396,6 @@ class LambdaApiLight:
 
             for path, routes in by_path.items():
                 methods = ",".join(route.method for route in routes)
-                route_info.append(Box(path=path, methods=methods))
+                route_info.append(SimpleNamespace(path=path, methods=methods))
 
         return route_info

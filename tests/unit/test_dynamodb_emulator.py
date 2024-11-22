@@ -1,6 +1,12 @@
+import logging
+import uuid
+from collections import defaultdict
+
 import pytest
 from poemai_utils.aws.dynamodb import VersionMismatchException
 from poemai_utils.aws.dynamodb_emulator import DynamoDBEmulator
+
+_logger = logging.getLogger(__name__)
 
 
 def test_db(tmp_path):
@@ -100,3 +106,85 @@ def test_db(tmp_path):
 
     # check that the items are sorted by the composite key (pk, sk)
     assert result_composite_keys == sorted(result_composite_keys)
+
+
+def test_get_paginated_items_starting_at_pk_sk(tmp_path):
+
+    db_file = tmp_path / "test.db"
+    ddb = DynamoDBEmulator(db_file)
+    TEST_TABLE_NAME = "test_table"
+
+    num_pks = 10
+    num_sks = 10
+
+    for i in range(num_pks):
+        for j in range(num_sks):
+            ddb.store_item(
+                TEST_TABLE_NAME,
+                {"pk": f"pk{i}", "sk": f"sk{j}", "data": f"data{i}{j}"},
+            )
+
+    pk = "pk3"
+
+    start_sk = "sk4"
+
+    paginated_items = ddb.get_paginated_items_starting_at_pk_sk(
+        TEST_TABLE_NAME, pk, start_sk
+    )
+
+    paginated_items_list = list(paginated_items)
+    for item in paginated_items_list:
+        _logger.info(f"item: {item}")
+
+    assert len(paginated_items_list) == 6
+
+    assert all([item["pk"] == pk for item in paginated_items_list])
+    assert all([item["sk"] >= start_sk for item in paginated_items_list])
+
+
+def test_paginated_items_starting_at_pk_sk_sorting(tmp_path):
+
+    db_file = tmp_path / "test.db"
+    ddb = DynamoDBEmulator(db_file)
+    TEST_TABLE_NAME = "test_table"
+
+    nun_pks = 5
+    num_sks = 5
+
+    pks_sks = []
+
+    for i in range(nun_pks):
+        pk = uuid.uuid4().hex
+        for j in range(num_sks):
+            sk = uuid.uuid4().hex
+
+            pks_sks.append((pk, sk))
+
+    for i, (pk, sk) in enumerate(pks_sks):
+        ddb.store_item(
+            TEST_TABLE_NAME,
+            {"pk": pk, "sk": sk, "data": f"Item{i}"},
+        )
+
+    sorted_pks_sks = sorted(pks_sks)
+
+    by_pk = defaultdict(list)
+
+    for pk, sk in sorted_pks_sks:
+        by_pk[pk].append((pk, sk))
+
+    for pk, keys_list in by_pk.items():
+
+        for i, start_sk in enumerate([kli[1] for kli in keys_list]):
+
+            paginated_items = ddb.get_paginated_items_starting_at_pk_sk(
+                TEST_TABLE_NAME, pk, start_sk
+            )
+
+            paginated_items_list = list(paginated_items)
+
+            assert len(paginated_items_list) == len(keys_list) - i
+
+            for j, item in enumerate(paginated_items_list):
+                assert item["pk"] == pk
+                assert item["sk"] == keys_list[i + j][1]

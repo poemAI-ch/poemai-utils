@@ -17,10 +17,12 @@ _logger = logging.getLogger(__name__)
 class DynamoDBEmulator:
     def __init__(self, sqlite_filename):
         if sqlite_filename is not None:
+            _logger.info(f"Using SQLite data store: {sqlite_filename}")
             self.data_table = SqliteDict(sqlite_filename, tablename="data")
             self.index_table = SqliteDict(sqlite_filename, tablename="index")
             self.is_sqlite = True
         else:
+            _logger.info("Using in-memory data store")
             self.data_table = {}
             self.index_table = {}
             self.is_sqlite = False
@@ -157,6 +159,25 @@ class DynamoDBEmulator:
             retval["pk"] = pk
         return retval
 
+    def get_paginated_items_by_sk(self, table_name, index_name, sk, limit=100):
+        """Get paginated items by sk
+        Implmemented as full table scan, very slow, but this is only an emulation anyway....
+
+        Args:
+            table_name (str): The name of the table
+            index_name (str): The name of the index which has sk as the primary key
+            sk (str): The value of the sk
+            limit (int): The number of items to return in each page
+        """
+        for item in self.get_paginated_items(
+            table_name=table_name,
+            key_condition_expression="sk = :sk",
+            expression_attribute_values={":sk": {"S": sk}},
+            index_name=index_name,
+            limit=limit,
+        ):
+            yield DynamoDB.item_to_dict(item)
+
     def get_paginated_items_by_pk(self, table_name, pk, limit=None):
         results = []
         index_key = self._get_index_key(table_name, pk)
@@ -283,6 +304,7 @@ class DynamoDBEmulator:
                 else:
                     results.append(item)
 
+        results = sorted(results, key=lambda x: (x.get("pk"), x.get("sk")))
         results = {"Items": [DynamoDB.dict_to_item(item) for item in results]}
 
         _logger.debug(f"Query results: {json.dumps(results, indent=2, default=str)}")
@@ -316,3 +338,26 @@ class DynamoDBEmulator:
                 break
 
             yield item
+
+    def get_paginated_items_starting_at_pk_sk(self, table_name, pk, sk, limit=100):
+        """Get paginated items starting at pk, sk, all within the same pk
+
+        Args:
+            table_name (str): The name of the table
+            pk (str): The value of the pk
+            sk (str): The starting value of the sk
+            limit (int): The number of items to return in each page
+        """
+        key_condition_expression = "pk = :pk AND sk >= :sk"
+        expression_attribute_values = {
+            ":pk": {"S": pk},
+            ":sk": {"S": sk},
+        }
+
+        for item in self.get_paginated_items(
+            table_name=table_name,
+            key_condition_expression=key_condition_expression,
+            expression_attribute_values=expression_attribute_values,
+            limit=limit,
+        ):
+            yield DynamoDB.item_to_dict(item)

@@ -483,6 +483,29 @@ class DynamoDB:
         ):
             yield self.item_to_dict(item)
 
+    def get_paginated_items_starting_at_pk_sk(self, table_name, pk, sk, limit=100):
+        """Get paginated items starting at pk, sk, all within the same pk
+
+        Args:
+            table_name (str): The name of the table
+            pk (str): The value of the pk
+            sk (str): The starting value of the sk
+            limit (int): The number of items to return in each page
+        """
+        key_condition_expression = "pk = :pk AND sk >= :sk"
+        expression_attribute_values = {
+            ":pk": {"S": pk},
+            ":sk": {"S": sk},
+        }
+
+        for item in self.get_paginated_items(
+            table_name=table_name,
+            key_condition_expression=key_condition_expression,
+            expression_attribute_values=expression_attribute_values,
+            limit=limit,
+        ):
+            yield self.item_to_dict(item)
+
     def get_item(self, TableName, Key):
         """A proxy for boto3.dynamodb.table.get_item"""
 

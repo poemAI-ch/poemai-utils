@@ -11,7 +11,7 @@ from setuptools import setup
 
 if __name__ == "__main__":
     try:
-        setup(version="1.3.0")
+        setup(version="1.4.0")
     except:  # noqa
         print(
             "\n\nAn error occurred while building the project, "

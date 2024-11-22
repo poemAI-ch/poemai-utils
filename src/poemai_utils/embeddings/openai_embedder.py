@@ -24,7 +24,10 @@ class OpenAIEmbedder(EmbedderBase):
 
         super().__init__()
 
-        self.model_name = model_name
+        if isinstance(model_name, OPENAI_MODEL):
+            self.model_name = model_name.model_key
+        else:
+            self.model_name = model_name
 
         if base_url is None:
             openai_model_id_enum = None
@@ -40,6 +43,7 @@ class OpenAIEmbedder(EmbedderBase):
                 except KeyError:
                     raise ValueError(f"Unknown model name {model_name}")
 
+            _logger.info(f"OpenAI model: {openai_model_id_enum}")
             if AIApiType.EMBEDDINGS not in openai_model_id_enum.api_types:
 
                 raise ValueError(f"Model {model_name} does not support embeddings")
@@ -53,9 +57,10 @@ class OpenAIEmbedder(EmbedderBase):
 
         openai_args = {}
         if openai_api_key is not None:
-            openai_args["api_key"] = openai_api_key
+            openai_args["api_key"] = str(openai_api_key).strip()
 
         if base_url is not None:
+            _logger.info(f"Using base_url {base_url}")
             openai_args["base_url"] = base_url
 
         self.client = OpenAI(**openai_args)

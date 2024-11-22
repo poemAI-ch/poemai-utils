@@ -97,3 +97,12 @@ def test_handle():
     assert body_obj["available_corpus_keys"] == ["test1", "test2", "test3"]
     assert body_obj["user_id"] == "test_user_id"
     assert body_obj["query"] == "test_query"
+
+
+def test_routes():
+
+    routes = sorted([(r.path, r.methods) for r in app.routes])
+
+    assert routes == [
+        ("/poemai_town_bot/api/v1/", "GET"),
+    ]
