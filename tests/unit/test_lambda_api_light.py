@@ -1,6 +1,7 @@
 import json
 import logging
 
+from build.lib.poemai_utils.aws.lambda_api_light import JSONResponse
 from poemai_utils.aws.lambda_api_light import (
     APIRouter,
     Depends,
@@ -8,6 +9,13 @@ from poemai_utils.aws.lambda_api_light import (
     LambdaApiLight,
     Query,
 )
+from pydantic import BaseModel
+
+
+class CorpusData(BaseModel):
+    thing_key: str
+    thing_data: dict
+
 
 _logger = logging.getLogger(__name__)
 
@@ -15,7 +23,7 @@ _application_service = None
 
 
 class Application:
-    def get_available_corpus_keys(self):
+    def get_available_thing_keys(self):
         return ["test1", "test2", "test3"]
 
 
@@ -44,7 +52,7 @@ async def startup_event():
     _logger.info("\n ----- Available routes:\n" + "\n".join(route_info) + "\n -----")
 
 
-PREFIX = f"/poemai_town_bot/api/v1"
+PREFIX = f"/test_api/api/v1"
 router = APIRouter(prefix=PREFIX)
 root_router = APIRouter(prefix=PREFIX)
 
@@ -56,11 +64,22 @@ async def get_root(
     the_query: str = Query(None),
 ):
     return {
-        "message": f"Welcome to the PoemAI Town Bot API.",
-        "available_corpus_keys": application_service.get_available_corpus_keys(),
+        "message": f"Welcome to the api",
+        "available_thing_keys": application_service.get_available_thing_keys(),
         "user_id": x_user_id,
         "query": the_query,
     }
+
+
+@root_router.post("/{thing_key}")
+async def post_thing(thing_key: str, thing_data: CorpusData):
+
+    headers = {"Location": f"/{thing_key}"}
+    return JSONResponse(
+        content=thing_data.model_dump(mode="json"),
+        status_code=201,
+        headers=headers,
+    )
 
 
 app.include_router(root_router)
@@ -68,16 +87,11 @@ app.include_router(root_router)
 
 def test_handle():
 
-    # method = event.get("httpMethod")
-    # path = event.get("path")
-    # query_params = event.get("queryStringParameters") or {}
-    # headers = event.get("headers") or {}
-    # body = event.get("body")
     event = {
         "httpMethod": "GET",
-        "path": "/poemai_town_bot/api/v1/",
+        "path": "/test_api/api/v1/",
         "queryStringParameters": {
-            "corpus_key": "test_corpus",
+            "thing_key": "test_thing",
             "the_query": "test_query",
         },
         "headers": {"X-User-Id": "test_user_id"},
@@ -93,8 +107,8 @@ def test_handle():
 
     body_obj = json.loads(body_text)
 
-    assert body_obj["message"] == "Welcome to the PoemAI Town Bot API."
-    assert body_obj["available_corpus_keys"] == ["test1", "test2", "test3"]
+    assert body_obj["message"] == "Welcome to the api"
+    assert body_obj["available_thing_keys"] == ["test1", "test2", "test3"]
     assert body_obj["user_id"] == "test_user_id"
     assert body_obj["query"] == "test_query"
 
@@ -104,5 +118,33 @@ def test_routes():
     routes = sorted([(r.path, r.methods) for r in app.routes])
 
     assert routes == [
-        ("/poemai_town_bot/api/v1/", "GET"),
+        ("/test_api/api/v1/", "GET"),
+        ("/test_api/api/v1/{thing_key}", "POST"),
     ]
+
+
+def test_post_thing():
+
+    _logger.info(f"Type of JSONResponse: {JSONResponse}")
+
+    thing_data = CorpusData(thing_key="test_thing", thing_data={"key": "value"})
+    event = {
+        "httpMethod": "POST",
+        "path": "/test_api/api/v1/test_thing",
+        "queryStringParameters": {},
+        "headers": {},
+        "body": json.dumps(thing_data.model_dump(mode="json")),
+    }
+
+    response = app.handle_request(event, None)
+
+    assert response["statusCode"] == 201
+
+    assert response["headers"]["Location"] == "/test_thing"
+
+    body_text = response["body"]
+
+    body_obj = json.loads(body_text)
+
+    assert body_obj["thing_key"] == "test_thing"
+    assert body_obj["thing_data"] == {"key": "value"}

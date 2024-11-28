@@ -39,6 +39,9 @@ class JSONResponse:
         self.headers = headers or {"Content-Type": "application/json"}
 
     def to_lambda_response(self):
+        _logger.info(
+            f"Convverting JSONResponse to Lambda Response, status code: {self.status_code}"
+        )
         return {
             "statusCode": self.status_code,
             "body": self.content,
@@ -124,7 +127,8 @@ class Route:
         self.regex = re.compile("^" + re.sub(r"{\w+}", r"([^/]+)", path) + "$")
         self.dependencies = self._extract_dependencies()
         self.header_params = self._extract_header_params()
-        self.query_params = self._extract_query_params()  # Add this line
+        self.query_params = self._extract_query_params()
+        self.body_params = self._extract_body_params()
 
     def _extract_dependencies(self) -> Dict[str, Callable]:
         dependencies = {}
@@ -159,6 +163,27 @@ class Route:
                     f"Found query parameter '{name}' with alias '{param.default.alias}' and default '{param.default.default}'"
                 )
         return query_params
+
+    def _extract_body_params(self) -> Dict[str, Any]:
+        body_params = {}
+        sig = inspect.signature(self.handler)
+        for name, param in sig.parameters.items():
+            if (
+                name in self.query_params
+                or name in self.header_params
+                or name in self.dependencies
+                or name in self.param_names
+            ):
+                continue
+            if not isinstance(
+                param.default, (Depends, Header, Query)
+            ) and param.kind in [
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY,
+            ]:
+                body_params[name] = param
+                _logger.info(f"Found body parameter '{name}'")
+        return body_params
 
     def match(self, method: str, path: str) -> Optional[Dict[str, str]]:
         if self.method != method:
@@ -290,12 +315,12 @@ class LambdaApiLight:
             except json.JSONDecodeError:
                 pass  # Keep as string if not JSON
 
+        # Handle dependencies
+        kwargs = {}
+
         # Include body if present
         if body:
             kwargs["body"] = body
-
-        # Handle dependencies
-        kwargs = {}
 
         for name, dep_callable in route.dependencies.items():
             kwargs[name] = dep_callable()
@@ -332,6 +357,32 @@ class LambdaApiLight:
             kwargs[name] = query_value
             _logger.info(f"Query Parameter: {name} = {query_value}")
 
+        # Handle body parameters
+        for name, param in route.body_params.items():
+            if body:
+
+                if hasattr(param.annotation, "parse_obj"):
+                    # Assume it's a Pydantic model
+                    try:
+                        kwargs[name] = param.annotation.parse_obj(body)
+                        _logger.info(
+                            f"Parsed body parameter '{name}' into {param.annotation}"
+                        )
+                    except Exception as e:
+                        _logger.warning(
+                            f"Failed to parse body parameter '{name}' into {param.annotation}: {e}"
+                        )
+                        raise HTTPException(
+                            400, f"Invalid body for parameter '{name}': {e}"
+                        )
+                else:
+                    kwargs[name] = body
+                    _logger.info(f"Body Parameter: {name} = {body}")
+            elif param.default != inspect.Parameter.empty:
+                kwargs[name] = param.default
+            else:
+                raise HTTPException(400, f"Missing required body parameter: {name}")
+
         # Handle the handler
         try:
             sig = inspect.signature(route.handler)
@@ -359,12 +410,15 @@ class LambdaApiLight:
                         future = pool.submit(loop.run_until_complete, result)
                         result = future.result()
                     loop.close()
-
-            if isinstance(result, (JSONResponse, StreamingResponse)):
+            result_class_name = result.__class__.__name__
+            if result_class_name in ["JSONResponse", "StreamingResponse"]:
+                _logger.info(f"Returning JSONResponse or StreamingResponse converted")
                 return result.to_lambda_response()
             elif isinstance(result, dict):
+                _logger.info(f"JSONResponse converting dict to json")
                 return JSONResponse(result).to_lambda_response()
             else:
+                _logger.info(f"Returning result as string")
                 # Assume string
                 return {
                     "statusCode": 200,

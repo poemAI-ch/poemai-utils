@@ -143,6 +143,8 @@ class Ask:
         #         "json_schema": structured_json_schema,
         #     }
 
+        if temperature is not None:
+            args["temperature"] = temperature
         if additional_args is not None:
             args.update(additional_args)
 
@@ -159,7 +161,6 @@ class Ask:
             )
             response_raw = self.client.chat.completions.create(
                 messages=message_list,
-                temperature=temperature,
                 model=self.model.model_key,
                 **args,
             )
@@ -237,6 +238,8 @@ class Ask:
         answer = None
         cache_hit = False
         cache_key = None
+        if "temperature" in additional_args:
+            temperature = additional_args["temperature"]
         if self.llm_answer_cache is not None:
             answer, cache_key = self.llm_answer_cache.fetch_from_cache(
                 self.model.name,
@@ -262,10 +265,11 @@ class Ask:
             _logger.debug(
                 f"Cache miss for for model {self.model} cache_key {cache_key}"
             )
+            if temperature is not None:
+                additional_args["temperature"] = temperature
             if AIApiType.CHAT_COMPLETIONS in self.model.api_types:
                 answer = self.ask_chat(
                     prompt,
-                    temperature,
                     max_tokens,
                     stop,
                     suffix,
