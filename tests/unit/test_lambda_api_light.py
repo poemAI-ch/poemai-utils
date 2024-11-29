@@ -6,13 +6,14 @@ from poemai_utils.aws.lambda_api_light import (
     APIRouter,
     Depends,
     Header,
+    HTTPException,
     LambdaApiLight,
     Query,
 )
 from pydantic import BaseModel
 
 
-class CorpusData(BaseModel):
+class ThingsData(BaseModel):
     thing_key: str
     thing_data: dict
 
@@ -72,7 +73,7 @@ async def get_root(
 
 
 @root_router.post("/{thing_key}")
-async def post_thing(thing_key: str, thing_data: CorpusData):
+async def post_thing(thing_key: str, thing_data: ThingsData):
 
     headers = {"Location": f"/{thing_key}"}
     return JSONResponse(
@@ -80,6 +81,16 @@ async def post_thing(thing_key: str, thing_data: CorpusData):
         status_code=201,
         headers=headers,
     )
+
+
+@root_router.get("/error")
+async def get_error(desired_status_code: int = Query(400)):
+    raise HTTPException(status_code=desired_status_code, detail="error")
+
+
+@root_router.get("/{thing_key}")
+async def get_thing(thing_key: str) -> ThingsData:
+    return ThingsData(thing_key=thing_key, thing_data={"key": "value"})
 
 
 app.include_router(root_router)
@@ -119,7 +130,8 @@ def test_routes():
 
     assert routes == [
         ("/test_api/api/v1/", "GET"),
-        ("/test_api/api/v1/{thing_key}", "POST"),
+        ("/test_api/api/v1/error", "GET"),
+        ("/test_api/api/v1/{thing_key}", "POST,GET"),
     ]
 
 
@@ -127,7 +139,7 @@ def test_post_thing():
 
     _logger.info(f"Type of JSONResponse: {JSONResponse}")
 
-    thing_data = CorpusData(thing_key="test_thing", thing_data={"key": "value"})
+    thing_data = ThingsData(thing_key="test_thing", thing_data={"key": "value"})
     event = {
         "httpMethod": "POST",
         "path": "/test_api/api/v1/test_thing",
@@ -148,3 +160,46 @@ def test_post_thing():
 
     assert body_obj["thing_key"] == "test_thing"
     assert body_obj["thing_data"] == {"key": "value"}
+
+
+def test_get_thing_with_model():
+
+    event = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/test_thing",
+        "queryStringParameters": {},
+        "headers": {},
+        "body": None,
+    }
+
+    response = app.handle_request(event, None)
+
+    assert response["statusCode"] == 200
+
+    body_text = response["body"]
+
+    body_obj = json.loads(body_text)
+
+    assert body_obj["thing_key"] == "test_thing"
+    assert body_obj["thing_data"] == {"key": "value"}
+
+
+def test_error():
+
+    event = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/error",
+        "queryStringParameters": {"desired_status_code": "503"},
+        "headers": {},
+        "body": None,
+    }
+
+    response = app.handle_request(event, None)
+
+    assert response["statusCode"] == 503
+
+    body_text = response["body"]
+
+    body_obj = json.loads(body_text)
+
+    assert body_obj["detail"] == "error"

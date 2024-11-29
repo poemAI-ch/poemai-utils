@@ -77,7 +77,7 @@ class StreamingResponse:
 # Exception Classes
 class HTTPException(Exception):
     def __init__(self, status_code: int, detail: Any = None):
-        self.status_code = status_code
+        self.status_code = int(status_code)
         self.detail = detail
 
 
@@ -417,6 +417,9 @@ class LambdaApiLight:
             elif isinstance(result, dict):
                 _logger.info(f"JSONResponse converting dict to json")
                 return JSONResponse(result).to_lambda_response()
+            elif hasattr(result, "model_dump"):
+                _logger.info(f"JSONResponse converting model to json")
+                return JSONResponse(result.model_dump(mode="json")).to_lambda_response()
             else:
                 _logger.info(f"Returning result as string")
                 # Assume string
