@@ -12,6 +12,23 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 _logger = logging.getLogger(__name__)
 
 
+def _is_basic_type(obj):
+    if isinstance(obj, (int, float, str, bool)):
+        return True
+
+
+def _serialize_recursive(obj):
+    if _is_basic_type(obj):
+        return obj
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump(mode="json")
+    if isinstance(obj, dict):
+        return {k: _serialize_recursive(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [_serialize_recursive(v) for v in obj]
+    return obj
+
+
 def snake_to_header(name: str) -> str:
     """
     Converts snake_case to Header-Case.
@@ -419,7 +436,7 @@ class LambdaApiLight:
                 return JSONResponse(result).to_lambda_response()
             elif isinstance(result, list):
                 _logger.info(f"JSONResponse converting list to json")
-                return JSONResponse(result).to_lambda_response()
+                return JSONResponse(_serialize_recursive(result)).to_lambda_response()
             elif hasattr(result, "model_dump"):
                 _logger.info(f"JSONResponse converting model to json")
                 return JSONResponse(result.model_dump(mode="json")).to_lambda_response()

@@ -90,7 +90,10 @@ async def get_error(desired_status_code: int = Query(400)):
 
 @root_router.get("/things")
 async def get_things():
-    return [{"name": "one_thing"}, {"name": "another_thing"}]
+    return [
+        ThingsData(thing_key="one_thing", thing_data={"key": "value"}),
+        ThingsData(thing_key="another_thing", thing_data={"key": "value"}),
+    ]
 
 
 @root_router.get("/things/{thing_key}")
@@ -211,7 +214,10 @@ def test_get_list_of_thigs():
 
     _logger.info(f"Body object: {body_obj}")
 
-    assert body_obj == [{"name": "one_thing"}, {"name": "another_thing"}]
+    assert body_obj == [
+        {"thing_key": "one_thing", "thing_data": {"key": "value"}},
+        {"thing_key": "another_thing", "thing_data": {"key": "value"}},
+    ]
 
 
 def test_error():
