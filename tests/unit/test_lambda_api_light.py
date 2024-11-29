@@ -72,7 +72,7 @@ async def get_root(
     }
 
 
-@root_router.post("/{thing_key}")
+@root_router.post("/things/{thing_key}")
 async def post_thing(thing_key: str, thing_data: ThingsData):
 
     headers = {"Location": f"/{thing_key}"}
@@ -88,7 +88,12 @@ async def get_error(desired_status_code: int = Query(400)):
     raise HTTPException(status_code=desired_status_code, detail="error")
 
 
-@root_router.get("/{thing_key}")
+@root_router.get("/things")
+async def get_things():
+    return [{"name": "one_thing"}, {"name": "another_thing"}]
+
+
+@root_router.get("/things/{thing_key}")
 async def get_thing(thing_key: str) -> ThingsData:
     return ThingsData(thing_key=thing_key, thing_data={"key": "value"})
 
@@ -127,11 +132,13 @@ def test_handle():
 def test_routes():
 
     routes = sorted([(r.path, r.methods) for r in app.routes])
+    _logger.info(f"Routes: {routes}")
 
     assert routes == [
         ("/test_api/api/v1/", "GET"),
         ("/test_api/api/v1/error", "GET"),
-        ("/test_api/api/v1/{thing_key}", "POST,GET"),
+        ("/test_api/api/v1/things", "GET"),
+        ("/test_api/api/v1/things/{thing_key}", "POST,GET"),
     ]
 
 
@@ -142,7 +149,7 @@ def test_post_thing():
     thing_data = ThingsData(thing_key="test_thing", thing_data={"key": "value"})
     event = {
         "httpMethod": "POST",
-        "path": "/test_api/api/v1/test_thing",
+        "path": "/test_api/api/v1/things/test_thing",
         "queryStringParameters": {},
         "headers": {},
         "body": json.dumps(thing_data.model_dump(mode="json")),
@@ -166,7 +173,7 @@ def test_get_thing_with_model():
 
     event = {
         "httpMethod": "GET",
-        "path": "/test_api/api/v1/test_thing",
+        "path": "/test_api/api/v1/things/test_thing",
         "queryStringParameters": {},
         "headers": {},
         "body": None,
@@ -182,6 +189,29 @@ def test_get_thing_with_model():
 
     assert body_obj["thing_key"] == "test_thing"
     assert body_obj["thing_data"] == {"key": "value"}
+
+
+def test_get_list_of_thigs():
+
+    event = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/things",
+        "queryStringParameters": {},
+        "headers": {},
+        "body": None,
+    }
+
+    response = app.handle_request(event, None)
+
+    assert response["statusCode"] == 200
+
+    body_text = response["body"]
+
+    body_obj = json.loads(body_text)
+
+    _logger.info(f"Body object: {body_obj}")
+
+    assert body_obj == [{"name": "one_thing"}, {"name": "another_thing"}]
 
 
 def test_error():

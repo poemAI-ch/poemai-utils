@@ -361,10 +361,10 @@ class LambdaApiLight:
         for name, param in route.body_params.items():
             if body:
 
-                if hasattr(param.annotation, "parse_obj"):
+                if hasattr(param.annotation, "model_validate"):
                     # Assume it's a Pydantic model
                     try:
-                        kwargs[name] = param.annotation.parse_obj(body)
+                        kwargs[name] = param.annotation.model_validate(body)
                         _logger.info(
                             f"Parsed body parameter '{name}' into {param.annotation}"
                         )
@@ -416,6 +416,9 @@ class LambdaApiLight:
                 return result.to_lambda_response()
             elif isinstance(result, dict):
                 _logger.info(f"JSONResponse converting dict to json")
+                return JSONResponse(result).to_lambda_response()
+            elif isinstance(result, list):
+                _logger.info(f"JSONResponse converting list to json")
                 return JSONResponse(result).to_lambda_response()
             elif hasattr(result, "model_dump"):
                 _logger.info(f"JSONResponse converting model to json")
