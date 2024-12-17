@@ -57,7 +57,7 @@ class JSONResponse:
 
     def to_lambda_response(self):
         _logger.info(
-            f"Convverting JSONResponse to Lambda Response, status code: {self.status_code}"
+            f"Converting JSONResponse to Lambda Response, status code: {self.status_code}"
         )
         return {
             "statusCode": self.status_code,
@@ -105,7 +105,7 @@ class Depends:
 
 
 class Header:
-    def __init__(self, default: Any = None, alias: str = None):
+    def __init__(self, default: Any = ..., alias: str = None):
         """
         Represents a header parameter.
 
@@ -118,7 +118,7 @@ class Header:
 
 
 class Query:
-    def __init__(self, default: Any = None, alias: str = None):
+    def __init__(self, default: Any = ..., alias: str = None):
         """
         Represents a query parameter.
 
@@ -320,88 +320,93 @@ class LambdaApiLight:
             return JSONResponse(
                 {"error": "Not Found"}, status_code=404
             ).to_lambda_response()
-
-        # Parse body
-        if body:
-            if is_base64_encoded:
-                import base64
-
-                body = base64.b64decode(body).decode("utf-8")
-            try:
-                body = json.loads(body)
-            except json.JSONDecodeError:
-                pass  # Keep as string if not JSON
-
-        # Handle dependencies
-        kwargs = {}
-
-        # Include body if present
-        if body:
-            kwargs["body"] = body
-
-        for name, dep_callable in route.dependencies.items():
-            kwargs[name] = dep_callable()
-
-        # Extract query parameters and path parameters
-        if path_params:
-            kwargs.update(path_params)
-        if query_params:
-            kwargs.update(query_params)
-
-        # Handle header parameters
-        for name, header in route.header_params.items():
-            header_name = header.alias or snake_to_header(name)
-            header_value = headers.get(header_name)
-            if header_value is None:
-                if header.default is not None:
-                    header_value = header.default
-                else:
-                    raise HTTPException(400, f"Missing required header: {header_name}")
-            kwargs[name] = header_value
-            _logger.info(f"Header Parameter: {name} = {header_value}")
-
-        # Handle query parameters
-        for name, query in route.query_params.items():
-            query_name = query.alias or snake_to_query_param(name)
-            query_value = query_params.get(query_name)
-            if query_value is None:
-                if query.default is not None:
-                    query_value = query.default
-                else:
-                    raise HTTPException(
-                        400, f"Missing required query parameter: {query_name}"
-                    )
-            kwargs[name] = query_value
-            _logger.info(f"Query Parameter: {name} = {query_value}")
-
-        # Handle body parameters
-        for name, param in route.body_params.items():
-            if body:
-
-                if hasattr(param.annotation, "model_validate"):
-                    # Assume it's a Pydantic model
-                    try:
-                        kwargs[name] = param.annotation.model_validate(body)
-                        _logger.info(
-                            f"Parsed body parameter '{name}' into {param.annotation}"
-                        )
-                    except Exception as e:
-                        _logger.warning(
-                            f"Failed to parse body parameter '{name}' into {param.annotation}: {e}"
-                        )
-                        raise HTTPException(
-                            400, f"Invalid body for parameter '{name}': {e}"
-                        )
-                else:
-                    kwargs[name] = body
-                    _logger.info(f"Body Parameter: {name} = {body}")
-            elif param.default != inspect.Parameter.empty:
-                kwargs[name] = param.default
-            else:
-                raise HTTPException(400, f"Missing required body parameter: {name}")
-
-        # Handle the handler
         try:
+            # Parse body
+            if body:
+                if is_base64_encoded:
+                    import base64
+
+                    body = base64.b64decode(body).decode("utf-8")
+                try:
+                    body = json.loads(body)
+                except json.JSONDecodeError:
+                    pass  # Keep as string if not JSON
+
+            # Handle dependencies
+            kwargs = {}
+
+            # Include body if present
+            if body:
+                kwargs["body"] = body
+
+            for name, dep_callable in route.dependencies.items():
+                kwargs[name] = dep_callable()
+
+            # Extract query parameters and path parameters
+            if path_params:
+                kwargs.update(path_params)
+            if query_params:
+                kwargs.update(query_params)
+
+            # Handle header parameters
+            for name, header in route.header_params.items():
+                header_name = header.alias or snake_to_header(
+                    name
+                )  # Convert to proper header name
+                header_value = headers.get(header_name)  # Extract the header value
+
+                if header_value is None:  # Header not provided
+                    if header.default is ...:  # Explicitly required header
+                        raise HTTPException(
+                            400, f"Missing required header: {header_name}"
+                        )
+                    else:  # Optional header with a default value
+                        header_value = header.default
+
+                kwargs[name] = header_value  # Populate the route function parameters
+                _logger.info(f"Header Parameter: {name} = {header_value}")
+
+            # Handle query parameters
+            for name, query in route.query_params.items():
+                query_name = query.alias or snake_to_query_param(name)
+                query_value = query_params.get(query_name)
+                if query_value is None:
+                    if query.default is ...:
+                        raise HTTPException(
+                            400, f"Missing required query parameter: {query_name}"
+                        )
+                    else:
+                        query_value = query.default
+
+                kwargs[name] = query_value
+                _logger.info(f"Query Parameter: {name} = {query_value}")
+
+            # Handle body parameters
+            for name, param in route.body_params.items():
+                if body:
+
+                    if hasattr(param.annotation, "model_validate"):
+                        # Assume it's a Pydantic model
+                        try:
+                            kwargs[name] = param.annotation.model_validate(body)
+                            _logger.info(
+                                f"Parsed body parameter '{name}' into {param.annotation}"
+                            )
+                        except Exception as e:
+                            _logger.warning(
+                                f"Failed to parse body parameter '{name}' into {param.annotation}: {e}"
+                            )
+                            raise HTTPException(
+                                400, f"Invalid body for parameter '{name}': {e}"
+                            )
+                    else:
+                        kwargs[name] = body
+                        _logger.info(f"Body Parameter: {name} = {body}")
+                elif param.default != inspect.Parameter.empty:
+                    kwargs[name] = param.default
+                else:
+                    raise HTTPException(400, f"Missing required body parameter: {name}")
+
             sig = inspect.signature(route.handler)
             bound_args = {}
             for name, param in sig.parameters.items():

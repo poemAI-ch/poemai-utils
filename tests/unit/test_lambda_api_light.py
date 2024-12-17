@@ -62,6 +62,7 @@ root_router = APIRouter(prefix=PREFIX)
 async def get_root(
     application_service: Application = Depends(get_application_service),
     x_user_id: str = Header(None),
+    x_required_header: str = Header(...),
     the_query: str = Query(None),
 ):
     return {
@@ -69,6 +70,21 @@ async def get_root(
         "available_thing_keys": application_service.get_available_thing_keys(),
         "user_id": x_user_id,
         "query": the_query,
+        "required_header": x_required_header,
+    }
+
+
+@root_router.get("/query_defaults")
+async def get_root(
+    application_service: Application = Depends(get_application_service),
+    optinal_query_with_default: str = Query("default_value"),
+    optional_query_with_none_default: str = Query(None),
+    required_query: str = Query(...),
+):
+    return {
+        "optinal_query_with_default": optinal_query_with_default,
+        "optional_query_with_none_default": optional_query_with_none_default,
+        "required_query": required_query,
     }
 
 
@@ -113,7 +129,10 @@ def test_handle():
             "thing_key": "test_thing",
             "the_query": "test_query",
         },
-        "headers": {"X-User-Id": "test_user_id"},
+        "headers": {
+            "X-User-Id": "test_user_id",
+            "X-Required-Header": "required_test_header",
+        },
         "body": None,
     }
 
@@ -130,6 +149,68 @@ def test_handle():
     assert body_obj["available_thing_keys"] == ["test1", "test2", "test3"]
     assert body_obj["user_id"] == "test_user_id"
     assert body_obj["query"] == "test_query"
+    assert body_obj["required_header"] == "required_test_header"
+
+    without_optional_header = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/",
+        "queryStringParameters": {
+            "thing_key": "test_thing",
+            "the_query": "test_query",
+        },
+        "headers": {"X-Required-Header": "required_test_header"},
+        "body": None,
+    }
+
+    response = app.handle_request(without_optional_header, None)
+    assert response["statusCode"] == 200  # headers are optional
+
+    without_required_header = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/",
+        "queryStringParameters": {
+            "thing_key": "test_thing",
+            "the_query": "test_query",
+        },
+        "headers": {},
+        "body": None,
+    }
+
+    response = app.handle_request(without_required_header, None)
+    assert response["statusCode"] == 400
+
+
+def test_query_defaults():
+
+    event_with_no_queries = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/query_defaults",
+        "queryStringParameters": {},
+        "headers": {},
+        "body": None,
+    }
+
+    response = app.handle_request(event_with_no_queries, None)
+    assert response["statusCode"] == 400
+
+    event_with_only_required_query = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/query_defaults",
+        "queryStringParameters": {
+            "required_query": "required_value",
+        },
+        "headers": {},
+        "body": None,
+    }
+
+    response = app.handle_request(event_with_only_required_query, None)
+    assert response["statusCode"] == 200
+
+    resultbody = json.loads(response["body"])
+
+    assert resultbody["required_query"] == "required_value"
+    assert resultbody["optinal_query_with_default"] == "default_value"
+    assert resultbody["optional_query_with_none_default"] == None
 
 
 def test_routes():
@@ -140,6 +221,7 @@ def test_routes():
     assert routes == [
         ("/test_api/api/v1/", "GET"),
         ("/test_api/api/v1/error", "GET"),
+        ("/test_api/api/v1/query_defaults", "GET"),
         ("/test_api/api/v1/things", "GET"),
         ("/test_api/api/v1/things/{thing_key}", "POST,GET"),
     ]
