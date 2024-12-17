@@ -165,6 +165,20 @@ def test_handle():
     response = app.handle_request(without_optional_header, None)
     assert response["statusCode"] == 200  # headers are optional
 
+    without_optional_header_but_lambda_header_writing = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/",
+        "queryStringParameters": {
+            "thing_key": "test_thing",
+            "the_query": "test_query",
+        },
+        "headers": {"x-required-header": "required_test_header"},
+        "body": None,
+    }
+
+    response = app.handle_request(without_optional_header, None)
+    assert response["statusCode"] == 200  # headers are optional
+
     without_required_header = {
         "httpMethod": "GET",
         "path": "/test_api/api/v1/",

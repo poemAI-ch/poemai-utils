@@ -42,6 +42,10 @@ def snake_to_header(name: str) -> str:
     return "-".join(word.capitalize() for word in name.split("_"))
 
 
+def canoncialize_header_name(name: str) -> str:
+    return name.lower()
+
+
 def snake_to_query_param(name: str) -> str:
     return name
 
@@ -163,10 +167,11 @@ class Route:
         header_params = {}
         sig = inspect.signature(self.handler)
         for name, param in sig.parameters.items():
+            canonical_name = canoncialize_header_name(name)
             if isinstance(param.default, Header):
-                header_params[name] = param.default
+                header_params[canonical_name] = param.default
                 _logger.info(
-                    f"Found header parameter '{name}' with alias '{param.default.alias}' and default '{param.default.default}'"
+                    f"Found header parameter '{canonical_name}' with alias '{param.default.alias}' and default '{param.default.default}'"
                 )
         return header_params
 
@@ -312,6 +317,8 @@ class LambdaApiLight:
         path = event.get("path")
         query_params = event.get("queryStringParameters") or {}
         headers = event.get("headers") or {}
+        headers = {canoncialize_header_name(k): v for k, v in headers.items()}
+
         body = event.get("body")
         is_base64_encoded = event.get("isBase64Encoded", False)
 
@@ -350,9 +357,11 @@ class LambdaApiLight:
 
             # Handle header parameters
             for name, header in route.header_params.items():
-                header_name = header.alias or snake_to_header(
-                    name
-                )  # Convert to proper header name
+
+                header_name = canoncialize_header_name(
+                    header.alias or snake_to_header(name)
+                )
+
                 header_value = headers.get(header_name)  # Extract the header value
 
                 if header_value is None:  # Header not provided

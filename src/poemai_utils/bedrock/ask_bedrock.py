@@ -1,8 +1,12 @@
 import base64
 import json
 import logging
+import os
+import sys
 from pathlib import Path
 
+import boto3
+import botocore
 import httpx
 import openai
 from poemai_utils.ai_model import AIApiType
@@ -29,7 +33,7 @@ def current_unix_time():
     return SimpleNamespace(unix_timestamp=unix_timestamp, dt=dt, iso_date=iso_date)
 
 
-class Ask:
+class AskBedrock:
     OPENAI_MODEL = (
         OPENAI_MODEL  # to make it easier to import / access, just use Ask.OPENAI_MODEL
     )
@@ -238,8 +242,6 @@ class Ask:
         answer = None
         cache_hit = False
         cache_key = None
-        if additional_args is None:
-            additional_args = {}
         if "temperature" in additional_args:
             temperature = additional_args["temperature"]
         if self.llm_answer_cache is not None:
