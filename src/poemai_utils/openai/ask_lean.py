@@ -9,6 +9,11 @@ from poemai_utils.openai.openai_model import OPENAI_MODEL
 _logger = logging.getLogger(__name__)
 
 
+class PydanticLikeBox(Box):
+    def dict(self):
+        return self.to_dict()
+
+
 class AskLean:
     OPENAI_MODEL = (
         OPENAI_MODEL  # to make it easier to import / access, just use Ask.OPENAI_MODEL
@@ -85,7 +90,8 @@ class AskLean:
                 if response.status_code == 200:
                     response_json = response.json()
                     _logger.debug(f"Received response from OpenAI API: {response_json}")
-                    return Box(response_json)
+                    retval = PydanticLikeBox(response_json)
+                    return retval
 
                 else:
                     # Non-200 response. Retry if it's a server error.

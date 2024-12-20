@@ -27,7 +27,7 @@ def test_ask_success(ask_lean_client):
 
         response = ask_lean_client.ask(messages=messages)
         assert (
-            response == mock_response
+            response.dict() == mock_response
         ), "Response should match the mocked return value"
 
         # Check the requests.post call arguments
@@ -56,7 +56,7 @@ def test_ask_with_properties(ask_lean_client):
 
         response = ask_lean_client.ask(messages=messages)
         assert (
-            response == mock_response
+            response.dict() == mock_response
         ), "Response should match the mocked return value"
 
         # Check the requests.post call arguments
@@ -92,7 +92,7 @@ def test_ask_with_retry(ask_lean_client):
         mock_post.side_effect = [first_attempt, second_attempt]
 
         response = ask_lean_client.ask(messages=messages)
-        assert response == mock_response
+        assert response.dict() == mock_response
 
         assert (
             mock_post.call_count == 2
