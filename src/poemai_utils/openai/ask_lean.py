@@ -3,6 +3,7 @@ import logging
 import time
 
 import requests
+from box import Box
 from poemai_utils.openai.openai_model import OPENAI_MODEL
 
 _logger = logging.getLogger(__name__)
@@ -84,7 +85,7 @@ class AskLean:
                 if response.status_code == 200:
                     response_json = response.json()
                     _logger.debug(f"Received response from OpenAI API: {response_json}")
-                    return response_json
+                    return Box(response_json)
 
                 else:
                     # Non-200 response. Retry if it's a server error.

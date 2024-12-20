@@ -39,6 +39,37 @@ def test_ask_success(ask_lean_client):
         assert data_sent["model"] == "gpt-4"
 
 
+def test_ask_with_properties(ask_lean_client):
+    """Test a successful API call with no retries needed."""
+    messages = [{"role": "user", "content": "Hello"}]
+    mock_response = {
+        "id": "123",
+        "object": "chat.completion",
+        "choices": [{"message": {"content": "Hi!"}}],
+    }
+
+    with patch("requests.post") as mock_post:
+        mock_requests_response = MagicMock()
+        mock_requests_response.status_code = 200
+        mock_requests_response.json.return_value = mock_response
+        mock_post.return_value = mock_requests_response
+
+        response = ask_lean_client.ask(messages=messages)
+        assert (
+            response == mock_response
+        ), "Response should match the mocked return value"
+
+        # Check the requests.post call arguments
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        assert kwargs["headers"]["Authorization"] == "Bearer fake_api_key"
+        data_sent = json.loads(kwargs["data"])
+        assert data_sent["messages"] == messages
+        assert data_sent["model"] == "gpt-4"
+
+        assert response.choices[0].message.content == "Hi!"
+
+
 def test_ask_with_retry(ask_lean_client):
     """Test that the class retries on server errors and eventually succeeds."""
     messages = [{"role": "user", "content": "Hello"}]
