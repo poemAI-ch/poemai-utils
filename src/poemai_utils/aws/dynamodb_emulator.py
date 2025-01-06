@@ -178,7 +178,9 @@ class DynamoDBEmulator:
         ):
             yield DynamoDB.item_to_dict(item)
 
-    def get_paginated_items_by_pk(self, table_name, pk, limit=None):
+    def get_paginated_items_by_pk(
+        self, table_name, pk, limit=None, projection_expression=None
+    ):
         results = []
         index_key = self._get_index_key(table_name, pk)
         composite_keys = set(self.index_table.get(index_key, []))
@@ -189,6 +191,12 @@ class DynamoDBEmulator:
                 new_item = copy.deepcopy(item)
                 new_item["pk"] = pk
                 new_item["sk"] = sk
+                if projection_expression:
+                    new_item = {
+                        k: v
+                        for k, v in new_item.items()
+                        if k in projection_expression.split(",")
+                    }
                 results.append(new_item)
 
         return results

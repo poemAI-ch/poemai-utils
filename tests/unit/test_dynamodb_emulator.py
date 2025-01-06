@@ -3,7 +3,7 @@ import uuid
 from collections import defaultdict
 
 import pytest
-from poemai_utils.aws.dynamodb import VersionMismatchException
+from poemai_utils.aws.dynamodb import DynamoDB, VersionMismatchException
 from poemai_utils.aws.dynamodb_emulator import DynamoDBEmulator
 
 _logger = logging.getLogger(__name__)
@@ -47,6 +47,13 @@ def test_db(tmp_path):
     assert db.get_paginated_items_by_pk(TABLE_NAME, "pk2") == [
         {"pk": "pk2", "sk": "sk1", "data": "data0"},
         {"pk": "pk2", "sk": "sk2", "data": "data3"},
+    ]
+
+    assert db.get_paginated_items_by_pk(
+        TABLE_NAME, "pk2", projection_expression="pk,sk"
+    ) == [
+        {"pk": "pk2", "sk": "sk1"},
+        {"pk": "pk2", "sk": "sk2"},
     ]
 
     db.delete_item_by_pk_sk(TABLE_NAME, "pk1", "sk1")
@@ -188,3 +195,30 @@ def test_paginated_items_starting_at_pk_sk_sorting(tmp_path):
             for j, item in enumerate(paginated_items_list):
                 assert item["pk"] == pk
                 assert item["sk"] == keys_list[i + j][1]
+
+
+def test_batch_get_items_by_pk_sk():
+
+    ddb = DynamoDBEmulator(None)
+    TEST_TABLE_NAME = "test_table"
+
+    ddb.store_item(TEST_TABLE_NAME, {"pk": "pk1", "sk": "sk1", "data": "data1"})
+
+    ddb.store_item(TEST_TABLE_NAME, {"pk": "pk1", "sk": "sk2", "data": "data2"})
+    ddb.store_item(TEST_TABLE_NAME, {"pk": "pk2", "sk": "sk2", "data": "data3"})
+
+    test_keys = [
+        {"pk": "pk1", "sk": "sk1"},
+        {"pk": "pk1", "sk": "sk2"},
+        {"pk": "pk2", "sk": "sk2"},
+    ]
+    test_keys = [DynamoDB.dict_to_item(item) for item in test_keys]
+
+    items = ddb.batch_get_items_by_pk_sk(TEST_TABLE_NAME, test_keys)
+
+    assert len(items) == 3
+
+    for item in items:
+        assert item["pk"] in ["pk1", "pk2"]
+        assert item["sk"] in ["sk1", "sk2"]
+        assert item["data"] in ["data1", "data2", "data3"]

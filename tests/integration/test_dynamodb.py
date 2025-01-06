@@ -209,6 +209,18 @@ def test_get_paginated_items_by_pk(ddb: DynamoDB):
     assert len(paginated_items_list) == 3
     assert paginated_items_list == items_to_store[:3]
 
+    paginated_items = ddb.get_paginated_items_by_pk(
+        TEST_TABLE_NAME, "pk1", projection_expression="pk,sk"
+    )
+
+    paginated_items_list = list(paginated_items)
+    assert len(paginated_items_list) == 3
+    assert paginated_items_list == [
+        {"pk": "pk1", "sk": "sk1"},
+        {"pk": "pk1", "sk": "sk2"},
+        {"pk": "pk1", "sk": "sk3"},
+    ]
+
 
 def test_query(ddb: DynamoDB):
     items_to_store = [
