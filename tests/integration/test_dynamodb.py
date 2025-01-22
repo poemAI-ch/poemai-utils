@@ -99,7 +99,7 @@ def test_get_paginated_items_special_format(ddb: DynamoDB):
     items_to_store = [
         {"pk": "pk1", "sk": "sk1", "data": "data1"},
         {"pk": "pk2", "sk": "sk2", "data": "data2"},
-        {"pk": "pk3", "sk": "sk3", "data": "data3"},
+        {"pk": "pk3", "sk": "sk3", "data": b"binary_data"},
     ]
 
     for item in items_to_store:
@@ -115,6 +115,17 @@ def test_get_paginated_items_special_format(ddb: DynamoDB):
     paginated_items_list = list(paginated_items)
     assert len(paginated_items_list) == 1
     assert DynamoDB.item_to_dict(paginated_items_list[0]) == items_to_store[0]
+
+    expression_attribute_values = {":pk": {"S": "pk3"}}
+    paginated_items = ddb.get_paginated_items(
+        TEST_TABLE_NAME, key_condition_expression, expression_attribute_values
+    )
+
+    paginated_items_list = list(paginated_items)
+
+    assert len(paginated_items_list) == 1
+    assert DynamoDB.item_to_dict(paginated_items_list[0]) == items_to_store[2]
+    assert type(DynamoDB.item_to_dict(paginated_items_list[0])["data"].value) == bytes
 
 
 @pytest.fixture

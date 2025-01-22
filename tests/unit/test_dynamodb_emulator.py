@@ -222,3 +222,30 @@ def test_batch_get_items_by_pk_sk():
         assert item["pk"] in ["pk1", "pk2"]
         assert item["sk"] in ["sk1", "sk2"]
         assert item["data"] in ["data1", "data2", "data3"]
+
+
+def test_binary_item():
+
+    ddb = DynamoDBEmulator(None)
+    TEST_TABLE_NAME = "test_table"
+
+    binary_data = b"binary_data"
+
+    ddb.store_item(TEST_TABLE_NAME, {"pk": "pk1", "sk": "sk1", "data": binary_data})
+
+    item = ddb.get_item_by_pk_sk(TEST_TABLE_NAME, "pk1", "sk1")
+
+    assert item["data"] == binary_data
+    sk = "sk1"
+    key_condition_expression = "sk = :sk"
+    expression_attribute_values = {":sk": {"S": sk}}
+    projection_expression = None
+
+    for item in ddb.get_paginated_items(
+        TEST_TABLE_NAME,
+        key_condition_expression,
+        expression_attribute_values,
+        projection_expression,
+        index_name="",
+    ):
+        _logger.info(f"item: {item}")

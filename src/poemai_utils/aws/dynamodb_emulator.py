@@ -66,8 +66,12 @@ class DynamoDBEmulator:
                     exc_info=True,
                 )
 
+            serialized_item = DynamoDB.ddb_type_serializer.serialize(item)
+            _logger.info(
+                f"Storing serialized_item {serialized_item} with composite key {composite_key}"
+            )
             # Store the item
-            self.data_table[composite_key] = item
+            self.data_table[composite_key] = serialized_item
 
             index_key = self._get_index_key(table_name, pk)
             index_list = set(self.index_table.get(index_key, []))
@@ -99,7 +103,8 @@ class DynamoDBEmulator:
     ):
         with self.lock:
             composite_key = self._get_composite_key(table_name, pk, sk)
-            item = self.data_table.get(composite_key)
+            item_serialized = self.data_table.get(composite_key)
+            item = DynamoDB.ddb_type_deserializer.deserialize(item_serialized)
 
             # If the item does not exist, we cannot update it
             if item is None:
@@ -120,14 +125,21 @@ class DynamoDBEmulator:
             # Update the version
             item[version_attribute_name] = expected_version + 1
 
+            serialized_item = DynamoDB.ddb_type_serializer.serialize(item)
+
             # Store the updated item
-            self.data_table[composite_key] = item
+            self.data_table[composite_key] = serialized_item
             self._commit()
 
     def get_item_by_pk_sk(self, table_name, pk, sk):
         composite_key = self._get_composite_key(table_name, pk, sk)
 
-        retval = self.data_table.get(composite_key, None)
+        retval_serialized = self.data_table.get(composite_key, None)
+        if retval_serialized is None:
+            retval = None
+        else:
+            retval = DynamoDB.ddb_type_deserializer.deserialize(retval_serialized)
+
         if retval:
             retval["pk"] = pk
             retval["sk"] = sk
@@ -154,7 +166,12 @@ class DynamoDBEmulator:
 
     def get_item_by_pk(self, table_name, pk):
         composite_key = self._get_composite_key(table_name, pk, "")
-        retval = self.data_table.get(composite_key, None)
+        retval_serialized = self.data_table.get(composite_key, None)
+        if retval_serialized is None:
+            retval = None
+        else:
+            retval = DynamoDB.ddb_type_deserializer.deserialize(retval_serialized)
+
         if retval:
             retval["pk"] = pk
         return retval
@@ -185,7 +202,12 @@ class DynamoDBEmulator:
         index_key = self._get_index_key(table_name, pk)
         composite_keys = set(self.index_table.get(index_key, []))
         for composite_key in sorted(composite_keys):
-            item = self.data_table.get(composite_key, None)
+            item_serialized = self.data_table.get(composite_key, None)
+            if item_serialized is None:
+                item = None
+            else:
+                item = DynamoDB.ddb_type_deserializer.deserialize(item_serialized)
+
             if item:
                 pk, sk = self._get_pk_sk_from_composite_key(composite_key)
                 new_item = copy.deepcopy(item)
@@ -288,7 +310,9 @@ class DynamoDBEmulator:
 
         # Perform full table scan and filter results
         results = []
-        for k, v in self.data_table.items():
+        for k, v_serialized in self.data_table.items():
+            v = DynamoDB.ddb_type_deserializer.deserialize(v_serialized)
+
             # Extract table name, pk, and sk from the composite key
             key_parts = k.split("___##___")
             if key_parts[0] != TableName:
@@ -313,7 +337,19 @@ class DynamoDBEmulator:
                     results.append(item)
 
         results = sorted(results, key=lambda x: (x.get("pk"), x.get("sk")))
-        results = {"Items": [DynamoDB.dict_to_item(item) for item in results]}
+
+        serialized_results = []
+        for item in results:
+            _logger.info(f"Trying to deserialize item {item}")
+            for key, value in item.items():
+                if hasattr(value, "value"):
+                    item[key] = value.value
+            serialized_item = DynamoDB.dict_to_item(item)
+            serialized_results.append(serialized_item)
+
+        # serialized_results = [DynamoDB.dict_to_item(item) for item in results]
+
+        results = {"Items": serialized_results}
 
         _logger.debug(f"Query results: {json.dumps(results, indent=2, default=str)}")
 
@@ -345,6 +381,8 @@ class DynamoDBEmulator:
             if i >= limit:
                 break
 
+            # item = {"M": item}
+            _logger.info(f"Yielding item {item}")
             yield item
 
     def get_paginated_items_starting_at_pk_sk(self, table_name, pk, sk, limit=100):
@@ -368,4 +406,6 @@ class DynamoDBEmulator:
             expression_attribute_values=expression_attribute_values,
             limit=limit,
         ):
-            yield DynamoDB.item_to_dict(item)
+            item_dict = DynamoDB.item_to_dict(item)
+            _logger.info(f"Yielding item_dict {item_dict}")
+            yield item_dict
