@@ -228,6 +228,31 @@ class DynamoDB:
         expected_version,
         version_attribute_name="version",
     ):
+        return self.update_versioned_item(
+            self.dynamodb_client,
+            table_name,
+            pk,
+            "pk",
+            attribute_updates,
+            expected_version,
+            version_attribute_name,
+            sk,
+            "sk",
+        )
+
+    @classmethod
+    def update_versioned_item(
+        cls,
+        dynamodb_client,
+        table_name,
+        hash_key,
+        hash_key_name,
+        attribute_updates,
+        expected_version,
+        version_attribute_name="version",
+        range_key=None,
+        range_key_name=None,
+    ):
         # Build the update expression
         set_expressions = []
         expression_attribute_values = {":expectedVersion": {"N": str(expected_version)}}
@@ -241,7 +266,7 @@ class DynamoDB:
             placeholder = f":{attr}"
             set_expressions.append(f"#{attr} = {placeholder}")
             expression_attribute_values[placeholder] = (
-                self.ddb_type_serializer.serialize(value)
+                cls.ddb_type_serializer.serialize(value)
             )
 
         update_expression = "SET " + ", ".join(set_expressions)
@@ -253,10 +278,13 @@ class DynamoDB:
         )
 
         try:
+            key = {hash_key_name: {"S": hash_key}}
+            if range_key is not None:
+                key[range_key_name] = {"S": range_key}
             # Perform a conditional update
-            response = self.dynamodb_client.update_item(
+            response = dynamodb_client.update_item(
                 TableName=table_name,
-                Key={"pk": {"S": pk}, "sk": {"S": sk}},
+                Key=key,
                 UpdateExpression=update_expression,
                 ExpressionAttributeNames=expression_attribute_names,
                 ExpressionAttributeValues=expression_attribute_values,
@@ -264,21 +292,19 @@ class DynamoDB:
                 ReturnValues="UPDATED_NEW",
             )
             _logger.debug(
-                f"Updated item {pk}:{sk} in table {table_name}, response: {response}"
+                f"Updated item {key} in table {table_name}, response: {response}"
             )
             return response
         except ClientError as e:
             if e.response["Error"]["Code"] == "ConditionalCheckFailedException":
                 _logger.error(
-                    f"Update failed: Optimistic lock failed, version mismatch for item {pk}:{sk}, expected {expected_version}"
+                    f"Update failed: Optimistic lock failed, version mismatch for item {key}, expected {expected_version}"
                 )
                 raise VersionMismatchException(
-                    f"Version mismatch updating {pk}:{sk}, expecting {expected_version}"
+                    f"Version mismatch updating {key}, expecting {expected_version}"
                 ) from e
             else:
-                _logger.error(
-                    f"Update failed for item {pk}:{sk}, response: {e.response}"
-                )
+                _logger.error(f"Update failed for item {key}, response: {e.response}")
                 raise
 
     def put_item(self, TableName, Item):
