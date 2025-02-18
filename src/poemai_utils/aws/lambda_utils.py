@@ -35,7 +35,7 @@ def extract_parameters(event, context):
 
     # API Gateway request: Combine query string and path parameters
     params = {}
-    if "queryStringParameters" in event:
+    if "queryStringParameters" in event and event["queryStringParameters"] is not None:
         params.update(event["queryStringParameters"])
     if "pathParameters" in event and event["pathParameters"] is not None:
         params.update(event["pathParameters"])
@@ -54,7 +54,10 @@ def extract_parameters(event, context):
 
     # Handle direct invoke or test event with a JSON body
     if not params and "body" in event:
-        return json.loads(event["body"])
+        try:
+            return json.loads(event["body"])
+        except json.JSONDecodeError:
+            return event["body"]
 
     # Return the original event if no parameters were found (direct invocation fallback)
     return params if params else event

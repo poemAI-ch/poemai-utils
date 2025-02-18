@@ -571,10 +571,12 @@ class AsyncOpenai:
             "model": self.model.model_key,
             "messages": messages,
             "temperature": temperature,
-            "stop": stop,
             "stream": True,
             "stream_options": {"include_usage": True},
         }
+        if stop is not None:
+            data["stop"] = stop
+
         if self.model.requires_max_completion_tokens:
             data["max_completion_tokens"] = max_tokens
         else:

@@ -82,3 +82,33 @@ def any_to_bool(value):
         if value in {"false", "0", "no", "n"}:
             return False
     return False  # Default to False for any other cases (None, empty string, etc.)
+
+
+def replace_floats_with_decimal(obj):
+    """
+    Recursively replaces float values in nested structures (lists, dictionaries)
+    with Decimal representations.
+    """
+    if isinstance(obj, dict):
+        return {key: replace_floats_with_decimal(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [replace_floats_with_decimal(element) for element in obj]
+    elif isinstance(obj, float):
+        return Decimal(str(obj))
+    else:
+        return obj
+
+
+def replace_decimal_with_string(obj):
+    """
+    Recursively replaces Decimal values in nested structures (lists, dictionaries)
+    with string representations, so that json serialization works correctly.
+    """
+    if isinstance(obj, dict):
+        return {key: replace_decimal_with_string(value) for key, value in obj.items()}
+    elif isinstance(obj, list):
+        return [replace_decimal_with_string(element) for element in obj]
+    elif isinstance(obj, Decimal):
+        return str(obj)
+    else:
+        return obj
