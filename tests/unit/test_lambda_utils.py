@@ -128,3 +128,10 @@ def test_async_with_backoff():
     assert (
         lambda_client.invoke.call_count == 3
     )  # Should call invoke 3 times (2 retries)
+
+
+def test_empty_query_params():
+
+    event = {"queryStringParameters": None, "pathParameters": None, "httpMethod": "GET"}
+
+    assert extract_parameters(event, None) == {"httpMethod": "GET"}
