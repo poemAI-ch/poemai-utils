@@ -9,6 +9,7 @@ from poemai_utils.aws.lambda_api_light import (
     HTTPException,
     LambdaApiLight,
     Query,
+    Request,
 )
 from pydantic import BaseModel
 
@@ -115,6 +116,20 @@ async def get_things():
 @root_router.get("/things/{thing_key}")
 async def get_thing(thing_key: str) -> ThingsData:
     return ThingsData(thing_key=thing_key, thing_data={"key": "value"})
+
+
+@root_router.api_route("/proxy/{path:path}", methods=["POST", "GET", "PUT", "DELETE"])
+def proxy_request(request: Request, path: str):
+    _logger.info(f"Proxying request to path: {path}")
+    _logger.info(f"Request object: {request}")
+    return JSONResponse(
+        status_code=200,
+        content={
+            "path": path,
+            "method": request.method,
+            "headers": dict(request.headers),
+        },
+    )
 
 
 app.include_router(root_router)
@@ -235,9 +250,13 @@ def test_routes():
     assert routes == [
         ("/test_api/api/v1/", "GET"),
         ("/test_api/api/v1/error", "GET"),
+        (
+            "/test_api/api/v1/proxy/{path:path}",
+            "DELETE,GET,POST,PUT",
+        ),
         ("/test_api/api/v1/query_defaults", "GET"),
         ("/test_api/api/v1/things", "GET"),
-        ("/test_api/api/v1/things/{thing_key}", "POST,GET"),
+        ("/test_api/api/v1/things/{thing_key}", "GET,POST"),
     ]
 
 
@@ -335,3 +354,24 @@ def test_error():
     body_obj = json.loads(body_text)
 
     assert body_obj["detail"] == "error"
+
+
+def test_proxy():
+    event = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/proxy/test_path",
+        "queryStringParameters": {},
+        "headers": {"x-test-header": "test_value"},
+        "body": None,
+    }
+
+    response = app.handle_request(event, None)
+    assert response["statusCode"] == 200
+
+    body_text = response["body"]
+
+    body_obj = json.loads(body_text)
+
+    assert body_obj["path"] == "test_path"
+    assert body_obj["method"] == "GET"
+    assert body_obj["headers"] == {"x-test-header": "test_value"}

@@ -1,11 +1,11 @@
 import asyncio
 import concurrent
+import copy
 import inspect
 import json
 import logging
 import re
 from collections import defaultdict
-from functools import wraps
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
@@ -134,21 +134,64 @@ class Query:
         self.alias = alias
 
 
+class Request:
+    def __init__(
+        self,
+        method: str,
+        path: str,
+        query_params: Dict[str, Any],
+        headers: Dict[str, Any],
+        body: Any,
+    ):
+        self.method = method
+        self.path = path
+        self.query_params = query_params
+        self.headers = copy.deepcopy(headers)
+        self.body = body
+
+        # find cookies
+        self.cookies = {}
+        cookie_header = headers.get("cookie")
+        if cookie_header:
+            del headers["cookie"]
+            for cookie in cookie_header.split(";"):
+                key, value = cookie.split("=")
+                self.cookies[key.strip()] = value.strip()
+
+
 # Route Data Structure
 class Route:
     def __init__(
-        self, method: str, path: str, handler: Callable, dependencies: List[str] = None
+        self,
+        methods: List[str],
+        path: str,
+        handler: Callable,
+        dependencies: List[str] = None,
     ):
-        self.method = method.upper()
+        self.methods = [method.upper() for method in methods]  # Store multiple methods
         self.path = path
         self.handler = handler
         self.dependencies = dependencies or []
-        # Compile regex for path matching and extract path parameters
-        self.param_names = re.findall(r"{(\w+)}", path)
-        self.regex = re.compile("^" + re.sub(r"{\w+}", r"([^/]+)", path) + "$")
+
+        # Find all parameters, both standard and `{param:path}`
+        self.param_names = re.findall(r"{(\w+)(?::path)?}", path)
+
+        # Generate regex:
+        #   - `{param}` -> `([^/]+)`
+        #   - `{param:path}` -> `(.*)`
+        regex_pattern = re.sub(r"{(\w+):path}", r"(.*)", path)  # Match entire remainder
+        regex_pattern = re.sub(
+            r"{(\w+)}", r"([^/]+)", regex_pattern
+        )  # Match single segment
+
+        # Final compiled regex
+        self.regex = re.compile(f"^{regex_pattern}$")
+
         self.dependencies = self._extract_dependencies()
         self.header_params = self._extract_header_params()
         self.query_params = self._extract_query_params()
+        self.request_params = self._extract_request_params()
+
         self.body_params = self._extract_body_params()
 
     def _extract_dependencies(self) -> Dict[str, Callable]:
@@ -175,6 +218,24 @@ class Route:
                 )
         return header_params
 
+    def _extract_request_params(self) -> Dict[str, Request]:
+        request_params = {}
+        sig = inspect.signature(self.handler)
+        for name, param in sig.parameters.items():
+            if param.annotation == Request:
+                param_default = param.default
+                request_params[name] = param_default
+                alias = None
+                param_default_value = None
+                if param_default is not None and not param_default is inspect._empty:
+                    alias = param_default.alias
+                    param_default_value = param_default.default
+
+                _logger.info(
+                    f"Found request parameter '{name}' with alias '{alias}' and default '{param_default_value}'"
+                )
+        return request_params
+
     def _extract_query_params(self) -> Dict[str, Query]:
         query_params = {}
         sig = inspect.signature(self.handler)
@@ -195,6 +256,7 @@ class Route:
                 or name in self.header_params
                 or name in self.dependencies
                 or name in self.param_names
+                or name in self.request_params
             ):
                 continue
             if not isinstance(
@@ -208,13 +270,15 @@ class Route:
         return body_params
 
     def match(self, method: str, path: str) -> Optional[Dict[str, str]]:
-        if self.method != method:
+        """Match the route against a request method and path."""
+        if method.upper() not in self.methods:  # Check if the method is allowed
             return None
         match = self.regex.match(path)
         if not match:
             return None
         params = match.groups()
-        return dict(zip(self.param_names, params))
+        retval = dict(zip(self.param_names, params))
+        return retval
 
 
 # Router Class
@@ -224,10 +288,14 @@ class APIRouter:
         self.routes: List[Route] = []
 
     def add_route(
-        self, method: str, path: str, handler: Callable, dependencies: List[Any] = None
+        self,
+        methods: List[str],
+        path: str,
+        handler: Callable,
+        dependencies: List[Any] = None,
     ):
         full_path = self.prefix + path
-        route = Route(method, full_path, handler, dependencies)
+        route = Route(methods, full_path, handler, dependencies)
         self.routes.append(route)
 
     # Decorator Factory
@@ -238,11 +306,27 @@ class APIRouter:
 
         return decorator
 
+    def api_route(self, path: str, methods: List[str], dependencies: List[str] = None):
+        def decorator(func: Callable):
+            self.add_route(methods, path, func, dependencies)
+            return func
+
+        return decorator
+
     def get(self, path: str, dependencies: List[str] = None):
-        return self.route("GET", path, dependencies)
+        return self.api_route(path, ["GET"], dependencies)
 
     def post(self, path: str, dependencies: List[str] = None):
-        return self.route("POST", path, dependencies)
+        return self.api_route(path, ["POST"], dependencies)
+
+    def put(self, path: str, dependencies: List[str] = None):
+        return self.api_route(path, ["PUT"], dependencies)
+
+    def delete(self, path: str, dependencies: List[str] = None):
+        return self.api_route(path, ["DELETE"], dependencies)
+
+    def patch(self, path: str, dependencies: List[str] = None):
+        return self.api_route(path, ["PATCH"], dependencies)
 
 
 class LambdaApiLight:
@@ -305,9 +389,12 @@ class LambdaApiLight:
     def find_route(
         self, method: str, path: str
     ) -> Tuple[Optional[Route], Optional[Dict[str, str]]]:
+        """Find a matching route by method and path."""
         for router in self.routers:
             for route in router.routes:
-                params = route.match(method, path)
+                params = route.match(
+                    method, path
+                )  # Now properly checks multiple methods
                 if params is not None:
                     return route, params
         return None, None
@@ -318,6 +405,13 @@ class LambdaApiLight:
         query_params = event.get("queryStringParameters") or {}
         headers = event.get("headers") or {}
         headers = {canoncialize_header_name(k): v for k, v in headers.items()}
+        request_object = Request(
+            method=method,
+            path=path,
+            query_params=query_params,
+            headers=headers,
+            body=event.get("body"),
+        )
 
         body = event.get("body")
         is_base64_encoded = event.get("isBase64Encoded", False)
@@ -347,7 +441,15 @@ class LambdaApiLight:
                 kwargs["body"] = body
 
             for name, dep_callable in route.dependencies.items():
-                kwargs[name] = dep_callable()
+                sig = inspect.signature(dep_callable)
+
+                dep_kwargs = {}
+                if "request" in sig.parameters:
+                    dep_kwargs["request"] = (
+                        request_object  # Inject the request object if needed
+                    )
+
+                kwargs[name] = dep_callable(**dep_kwargs)
 
             # Extract query parameters and path parameters
             if path_params:
@@ -415,6 +517,9 @@ class LambdaApiLight:
                     kwargs[name] = param.default
                 else:
                     raise HTTPException(400, f"Missing required body parameter: {name}")
+
+            for name, _ in route.request_params.items():
+                kwargs[name] = request_object
 
             sig = inspect.signature(route.handler)
             bound_args = {}
@@ -486,7 +591,11 @@ class LambdaApiLight:
                 by_path[route.path].append(route)
 
             for path, routes in by_path.items():
-                methods = ",".join(route.method for route in routes)
+                method_list = []
+                for route in routes:
+                    method_list.extend(route.methods)
+                method_list = sorted(set(method_list))
+                methods = ",".join(method_list)
                 route_info.append(SimpleNamespace(path=path, methods=methods))
 
         return route_info
