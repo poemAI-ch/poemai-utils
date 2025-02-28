@@ -148,7 +148,7 @@ class Request:
         self.path = path
         self.query_params = query_params or {}
         self.headers = copy.deepcopy(headers)
-        self.body = body
+        self._body = body
 
         # Construct a FastAPI-like `request.url` object
         self.url = SimpleNamespace(
@@ -165,6 +165,9 @@ class Request:
             for cookie in cookie_header.split(";"):
                 key, value = cookie.split("=")
                 self.cookies[key.strip()] = value.strip()
+
+    def body(self):
+        return self._body
 
     def _construct_query_string(self) -> str:
         """Constructs the query string from query parameters."""

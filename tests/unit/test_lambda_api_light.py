@@ -129,6 +129,7 @@ def proxy_request(request: Request, path: str):
             "method": request.method,
             "headers": dict(request.headers),
             "query_params": request.query_params,  # Add query parameters to response
+            "body": request.body(),
         },
     )
 
@@ -363,7 +364,7 @@ def test_proxy():
         "path": "/test_api/api/v1/proxy/test_path",
         "queryStringParameters": {"param1": "value1", "param2": "value2"},
         "headers": {"x-test-header": "test_value"},
-        "body": None,
+        "body": "request_body_text",
     }
 
     response = app.handle_request(event, None)
@@ -380,3 +381,5 @@ def test_proxy():
 
     # Ensure query parameters are properly passed in the request object
     assert body_obj.get("query_params") == {"param1": "value1", "param2": "value2"}
+
+    assert body_obj["body"] == "request_body_text"
