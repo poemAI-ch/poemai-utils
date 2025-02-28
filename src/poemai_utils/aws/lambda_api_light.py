@@ -8,6 +8,7 @@ import re
 from collections import defaultdict
 from types import SimpleNamespace
 from typing import Any, Callable, Dict, List, Optional, Tuple
+from urllib.parse import urlencode, urlparse
 
 _logger = logging.getLogger(__name__)
 
@@ -145,11 +146,18 @@ class Request:
     ):
         self.method = method
         self.path = path
-        self.query_params = query_params
+        self.query_params = query_params or {}
         self.headers = copy.deepcopy(headers)
         self.body = body
 
-        # find cookies
+        # Construct a FastAPI-like `request.url` object
+        self.url = SimpleNamespace(
+            path=self.path,
+            query=self._construct_query_string(),
+            full_url=self._construct_full_url(),
+        )
+
+        # Extract cookies from headers
         self.cookies = {}
         cookie_header = headers.get("cookie")
         if cookie_header:
@@ -157,6 +165,15 @@ class Request:
             for cookie in cookie_header.split(";"):
                 key, value = cookie.split("=")
                 self.cookies[key.strip()] = value.strip()
+
+    def _construct_query_string(self) -> str:
+        """Constructs the query string from query parameters."""
+        return urlencode(self.query_params, doseq=True)
+
+    def _construct_full_url(self) -> str:
+        """Constructs a full URL representation (without domain)."""
+        query_string = self._construct_query_string()
+        return f"{self.path}?{query_string}" if query_string else self.path
 
 
 # Route Data Structure
