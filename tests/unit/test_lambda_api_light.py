@@ -10,6 +10,7 @@ from poemai_utils.aws.lambda_api_light import (
     HTTPException,
     LambdaApiLight,
     Query,
+    RedirectResponse,
     Request,
 )
 from pydantic import BaseModel
@@ -151,6 +152,11 @@ def proxy_request(request: Request, path: str):
     )
 
 
+@root_router.get("/redirect")
+async def get_redirect():
+    return RedirectResponse(url="/test_api/api/v1/")
+
+
 app.include_router(root_router)
 
 
@@ -278,6 +284,10 @@ def test_routes():
             "DELETE,GET,POST,PUT",
         ),
         ("/test_api/api/v1/query_defaults", "GET"),
+        (
+            "/test_api/api/v1/redirect",
+            "GET",
+        ),
         ("/test_api/api/v1/things", "GET"),
         ("/test_api/api/v1/things/{thing_key}", "GET,POST"),
     ]
@@ -437,3 +447,18 @@ def test_no_auth():
     response = app.handle_request(event, None)
 
     assert response["statusCode"] == 401
+
+
+def test_redirect():
+    event = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/redirect",
+        "queryStringParameters": {},
+        "headers": {},
+        "body": None,
+    }
+
+    response = app.handle_request(event, None)
+
+    assert response["statusCode"] == 307
+    assert response["headers"]["Location"] == "/test_api/api/v1/"

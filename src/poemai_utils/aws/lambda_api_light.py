@@ -96,6 +96,21 @@ class StreamingResponse:
         }
 
 
+class RedirectResponse:
+    def __init__(
+        self, url: str, status_code: int = 307, headers: Dict[str, str] = None
+    ):
+        self.url = url
+        self.status_code = status_code
+        self.headers = headers or {}
+
+    def to_lambda_response(self):
+        return {
+            "statusCode": self.status_code,
+            "headers": {**self.headers, **{"Location": self.url}},
+        }
+
+
 # Exception Classes
 class HTTPException(Exception):
     def __init__(self, status_code: int, detail: Any = None):
@@ -552,12 +567,6 @@ class LambdaApiLight:
         return decorator
 
     def execute_startup(self):
-        """
-        Executes all startup event handlers.
-        """
-        asyncio.run(self.execute_event_handlers("startup"))
-
-    def execute_startup(self):
         for handler in self.on_startup_handlers:
             handler()
 
@@ -567,9 +576,7 @@ class LambdaApiLight:
         """Find a matching route by method and path."""
         for router in self.routers:
             for route in router.routes:
-                params = route.match(
-                    method, path
-                )  # Now properly checks multiple methods
+                params = route.match(method, path)
                 if params is not None:
                     return route, params
         return None, None
@@ -733,8 +740,14 @@ class LambdaApiLight:
                         result = future.result()
                     loop.close()
             result_class_name = result.__class__.__name__
-            if result_class_name in ["JSONResponse", "StreamingResponse"]:
-                _logger.info(f"Returning JSONResponse or StreamingResponse converted")
+            if result_class_name in [
+                "JSONResponse",
+                "StreamingResponse",
+                "RedirectResponse",
+            ]:
+                _logger.info(
+                    f"Returning JSONResponse or StreamingResponse or RedirectResponse converted to Lambda Response"
+                )
                 return result.to_lambda_response()
             elif isinstance(result, dict):
                 _logger.info(f"JSONResponse converting dict to json")
@@ -745,6 +758,7 @@ class LambdaApiLight:
             elif hasattr(result, "model_dump"):
                 _logger.info(f"JSONResponse converting model to json")
                 return JSONResponse(result.model_dump(mode="json")).to_lambda_response()
+
             else:
                 _logger.info(f"Returning result as string")
                 # Assume string
