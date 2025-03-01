@@ -423,3 +423,17 @@ def test_protected_route():
     body_obj = json.loads(body_text)
 
     assert body_obj["auth_info"]["token"] == "test_token"
+
+
+def test_no_auth():
+    event = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/protected",
+        "queryStringParameters": {},
+        "headers": {},
+        "body": None,
+    }
+
+    response = app.handle_request(event, None)
+
+    assert response["statusCode"] == 401

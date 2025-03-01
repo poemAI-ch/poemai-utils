@@ -377,8 +377,19 @@ class InjectedDependency:
             else:
                 # If the parameter has a default value, use it.
                 param = self.hf.signature.parameters[param_name]
+                _logger.info(f"{param_name}: Param: {param}")
                 if param.default != inspect.Parameter.empty:
-                    injection_kwargs[param_name] = param.default
+                    param_default_value = param.default
+                    if isinstance(param_default_value, Depends):
+                        # Resolve the dependency function
+                        param_default_value = param_default_value.dependency()
+                    elif isinstance(param_default_value, Header):
+                        # Use the default value of the header
+                        param_default_value = param_default_value.default
+                    elif isinstance(param_default_value, Query):
+                        param_default_value = param_default_value.default
+
+                    injection_kwargs[param_name] = param_default_value
                 else:
                     raise Exception(
                         f"Missing injection for dependency parameter '{param_name}' (lookup key '{lookup_key}')"
