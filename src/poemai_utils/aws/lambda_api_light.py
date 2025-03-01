@@ -108,6 +108,10 @@ class Depends:
         _logger.info(f"Constructing Depends with {dependency}")
         self.dependency = dependency
 
+        # Check if the dependency is a function
+        if not inspect.isfunction(dependency):
+            raise ValueError("Depends requires a function")
+
 
 class Header:
     def __init__(self, default: Any = ..., alias: str = None):
@@ -179,6 +183,212 @@ class Request:
         return f"{self.path}?{query_string}" if query_string else self.path
 
 
+# Assume these helper functions and classes are already defined:
+#   - canoncialize_header_name
+#   - Depends, Header, Query, Request
+
+
+class HandlingFunction:
+    """
+    A helper class to extract injection metadata from a function signature.
+
+    Attributes:
+        func: The callable (route handler or dependency function).
+        route_param_names: Parameter names coming from the route (e.g. extracted from the URL path).
+        signature: The inspected signature of the function.
+        dependencies: A dict mapping parameter names to dependency callables (from Depends).
+        header_params: A dict mapping canonical header parameter names to Header instances.
+        request_params: A dict mapping parameter names (annotated as Request) to their defaults.
+        query_params: A dict mapping parameter names to Query instances.
+        body_params: A dict mapping parameter names to their inspect.Parameter objects that are meant for the body.
+    """
+
+    def __init__(self, func: Callable, route_param_names: Optional[List[str]] = None):
+        self.func = func
+        self.route_param_names = route_param_names or []
+        self.signature = inspect.signature(func)
+
+        self.dependencies: Dict[str, Callable] = self._extract_dependencies()
+        self.header_params: Dict[str, Header] = self._extract_header_params()
+        self.request_params: Dict[str, Request] = self._extract_request_params()
+        self.query_params: Dict[str, Query] = self._extract_query_params()
+        self.body_params: Dict[str, inspect.Parameter] = self._extract_body_params()
+
+    def _extract_dependencies(self) -> Dict[str, Callable]:
+        """
+        Extracts dependencies based on parameters that have a default instance of Depends.
+        """
+        dependencies = {}
+        for name, param in self.signature.parameters.items():
+            if isinstance(param.default, Depends):
+                # Record the dependency function itself
+                dependencies[name] = param.default.dependency
+        return dependencies
+
+    def _extract_header_params(self) -> Dict[str, Header]:
+        """
+        Extracts header parameters based on parameters with a default instance of Header.
+        Uses a canonical header name (lowercase) as the key.
+        """
+        header_params = {}
+        for name, param in self.signature.parameters.items():
+            canonical_name = canoncialize_header_name(name)
+            if isinstance(param.default, Header):
+                header_params[canonical_name] = param.default
+        return header_params
+
+    def _extract_request_params(self) -> Dict[str, Request]:
+        """
+        Extracts request parameters by checking for parameters annotated as Request.
+        """
+        request_params = {}
+        for name, param in self.signature.parameters.items():
+            if param.annotation == Request:
+                request_params[name] = (
+                    param.default
+                )  # Could be None or a default instance
+        return request_params
+
+    def _extract_query_params(self) -> Dict[str, Query]:
+        """
+        Extracts query parameters based on parameters with a default instance of Query.
+        """
+        query_params = {}
+        for name, param in self.signature.parameters.items():
+            if isinstance(param.default, Query):
+                query_params[name] = param.default
+        return query_params
+
+    def _extract_body_params(self) -> Dict[str, inspect.Parameter]:
+        """
+        Extracts body parameters as those parameters that are not:
+            - Route path parameters
+            - Dependencies
+            - Header parameters
+            - Query parameters
+            - Request parameters (based on annotation)
+        And whose default is not a Depends, Header, or Query.
+        """
+        body_params = {}
+        for name, param in self.signature.parameters.items():
+            if (
+                name in self.dependencies
+                or canoncialize_header_name(name) in self.header_params
+                or name in self.query_params
+                or name in self.request_params
+                or name in self.route_param_names
+            ):
+                continue
+            # We only consider parameters that are explicitly positional/keyword
+            if not isinstance(
+                param.default, (Depends, Header, Query)
+            ) and param.kind in (
+                inspect.Parameter.POSITIONAL_OR_KEYWORD,
+                inspect.Parameter.KEYWORD_ONLY,
+            ):
+                body_params[name] = param
+        return body_params
+
+    def get_injection_kwargs(self, available_values: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Given a dictionary of already extracted values (e.g. from the headers, query, and path),
+        returns a dictionary of arguments to be injected when calling self.func.
+
+        This method can be extended to also resolve dependencies by calling their functions.
+        """
+        injection_kwargs = {}
+        # Inject direct values (headers, query, path, etc.)
+        for name in self.signature.parameters:
+            if name in available_values:
+                injection_kwargs[name] = available_values[name]
+
+        # For dependencies, we can attempt to resolve them by inspecting their signature
+        for dep_name, dep_func in self.dependencies.items():
+            dep_sig = inspect.signature(dep_func)
+            dep_kwargs = {}
+            # For each parameter in the dependency, try to provide a value if available
+            for pname in dep_sig.parameters:
+                if pname in available_values:
+                    dep_kwargs[pname] = available_values[pname]
+                elif pname == "request" and "request" in available_values:
+                    dep_kwargs["request"] = available_values["request"]
+            # Call the dependency function and store its result
+            injection_kwargs[dep_name] = dep_func(**dep_kwargs)
+        return injection_kwargs
+
+    def __repr__(self):
+        return (
+            f"HandlingFunction(func={self.func.__name__}, "
+            f"dependencies={list(self.dependencies.keys())}, "
+            f"header_params={list(self.header_params.keys())}, "
+            f"query_params={list(self.query_params.keys())}, "
+            f"request_params={list(self.request_params.keys())}, "
+            f"body_params={list(self.body_params.keys())})"
+        )
+
+
+class InjectedDependency:
+    """
+    Wraps a dependency function and precomputes an injection map.
+
+    The injection map maps each parameter name in the dependency function's
+    signature to a key that is expected in the available values dictionary.
+
+    For example, if a parameter has a default value of type Header, its lookup
+    key is determined from the header alias (or using snake_to_header).
+    """
+
+    def __init__(self, dep_func: Callable):
+        self.dep_func = dep_func
+        # Use HandlingFunction to analyze the dependency function
+        self.hf = HandlingFunction(dep_func)
+        self.injection_map = self._compute_injection_map()
+        _logger.info(
+            f"Analyzed dependency {dep_func.__name__}: injection_map={self.injection_map}"
+        )
+
+    def _compute_injection_map(self) -> Dict[str, str]:
+        mapping = {}
+        for param_name, param in self.hf.signature.parameters.items():
+            # For a Request parameter, use the key "request"
+            if param.annotation == Request:
+                mapping[param_name] = "request"
+            # For a Header parameter, use the canonical header name.
+            elif isinstance(param.default, Header):
+                header_alias = param.default.alias or snake_to_header(param_name)
+                mapping[param_name] = canoncialize_header_name(header_alias)
+            # For a Query parameter, use its alias if provided, else the parameter name.
+            elif isinstance(param.default, Query):
+                mapping[param_name] = param.default.alias or param_name
+            else:
+                # Fallback: use the parameter name directly
+                mapping[param_name] = param_name
+        return mapping
+
+    def resolve(self, available_values: Dict[str, Any]) -> Any:
+        """
+        Resolves the dependency by building a kwargs dict based on the injection map
+        and then calling the dependency function.
+        """
+        injection_kwargs = {}
+        for param_name, lookup_key in self.injection_map.items():
+            if lookup_key in available_values:
+                injection_kwargs[param_name] = available_values[lookup_key]
+            else:
+                # If the parameter has a default value, use it.
+                param = self.hf.signature.parameters[param_name]
+                if param.default != inspect.Parameter.empty:
+                    injection_kwargs[param_name] = param.default
+                else:
+                    raise Exception(
+                        f"Missing injection for dependency parameter '{param_name}' (lookup key '{lookup_key}')"
+                    )
+        _logger.info(
+            f"Resolved dependency {self.dep_func.__name__} with kwargs {injection_kwargs}"
+        )
+        return self.dep_func(**injection_kwargs)
+
+
 # Route Data Structure
 class Route:
     def __init__(
@@ -196,6 +406,22 @@ class Route:
         # Find all parameters, both standard and `{param:path}`
         self.param_names = re.findall(r"{(\w+)(?::path)?}", path)
 
+        # Create a HandlingFunction instance for the handler,
+        # passing route parameter names to exclude them from body parameters.
+        hf = HandlingFunction(handler, route_param_names=self.param_names)
+
+        self.dependencies = (
+            {}
+        )  # key: parameter name, value: InjectedDependency instance
+        # Wrap each dependency function with InjectedDependency.
+        for dep_name, dep_func in hf.dependencies.items():
+            self.dependencies[dep_name] = InjectedDependency(dep_func)
+
+        self.header_params = hf.header_params
+        self.query_params = hf.query_params
+        self.request_params = hf.request_params
+        self.body_params = hf.body_params
+
         # Generate regex:
         #   - `{param}` -> `([^/]+)`
         #   - `{param:path}` -> `(.*)`
@@ -206,88 +432,6 @@ class Route:
 
         # Final compiled regex
         self.regex = re.compile(f"^{regex_pattern}$")
-
-        self.dependencies = self._extract_dependencies()
-        self.header_params = self._extract_header_params()
-        self.query_params = self._extract_query_params()
-        self.request_params = self._extract_request_params()
-
-        self.body_params = self._extract_body_params()
-
-    def _extract_dependencies(self) -> Dict[str, Callable]:
-        dependencies = {}
-        sig = inspect.signature(self.handler)
-        for name, param in sig.parameters.items():
-            if isinstance(param.default, Depends):
-                _logger.info(
-                    f"Found dependency for {name} : {param.default.dependency}"
-                )
-
-                dependencies[name] = param.default.dependency
-        return dependencies
-
-    def _extract_header_params(self) -> Dict[str, Header]:
-        header_params = {}
-        sig = inspect.signature(self.handler)
-        for name, param in sig.parameters.items():
-            canonical_name = canoncialize_header_name(name)
-            if isinstance(param.default, Header):
-                header_params[canonical_name] = param.default
-                _logger.info(
-                    f"Found header parameter '{canonical_name}' with alias '{param.default.alias}' and default '{param.default.default}'"
-                )
-        return header_params
-
-    def _extract_request_params(self) -> Dict[str, Request]:
-        request_params = {}
-        sig = inspect.signature(self.handler)
-        for name, param in sig.parameters.items():
-            if param.annotation == Request:
-                param_default = param.default
-                request_params[name] = param_default
-                alias = None
-                param_default_value = None
-                if param_default is not None and not param_default is inspect._empty:
-                    alias = param_default.alias
-                    param_default_value = param_default.default
-
-                _logger.info(
-                    f"Found request parameter '{name}' with alias '{alias}' and default '{param_default_value}'"
-                )
-        return request_params
-
-    def _extract_query_params(self) -> Dict[str, Query]:
-        query_params = {}
-        sig = inspect.signature(self.handler)
-        for name, param in sig.parameters.items():
-            if isinstance(param.default, Query):
-                query_params[name] = param.default
-                _logger.info(
-                    f"Found query parameter '{name}' with alias '{param.default.alias}' and default '{param.default.default}'"
-                )
-        return query_params
-
-    def _extract_body_params(self) -> Dict[str, Any]:
-        body_params = {}
-        sig = inspect.signature(self.handler)
-        for name, param in sig.parameters.items():
-            if (
-                name in self.query_params
-                or name in self.header_params
-                or name in self.dependencies
-                or name in self.param_names
-                or name in self.request_params
-            ):
-                continue
-            if not isinstance(
-                param.default, (Depends, Header, Query)
-            ) and param.kind in [
-                inspect.Parameter.POSITIONAL_OR_KEYWORD,
-                inspect.Parameter.KEYWORD_ONLY,
-            ]:
-                body_params[name] = param
-                _logger.info(f"Found body parameter '{name}'")
-        return body_params
 
     def match(self, method: str, path: str) -> Optional[Dict[str, str]]:
         """Match the route against a request method and path."""
@@ -456,27 +600,6 @@ class LambdaApiLight:
             # Handle dependencies
             kwargs = {}
 
-            # Include body if present
-            if body:
-                kwargs["body"] = body
-
-            for name, dep_callable in route.dependencies.items():
-                sig = inspect.signature(dep_callable)
-
-                dep_kwargs = {}
-                if "request" in sig.parameters:
-                    dep_kwargs["request"] = (
-                        request_object  # Inject the request object if needed
-                    )
-
-                kwargs[name] = dep_callable(**dep_kwargs)
-
-            # Extract query parameters and path parameters
-            if path_params:
-                kwargs.update(path_params)
-            if query_params:
-                kwargs.update(query_params)
-
             # Handle header parameters
             for name, header in route.header_params.items():
 
@@ -497,6 +620,35 @@ class LambdaApiLight:
                 kwargs[name] = header_value  # Populate the route function parameters
                 _logger.info(f"Header Parameter: {name} = {header_value}")
 
+            # Include body if present
+            if body:
+                kwargs["body"] = body
+
+            # Build an available values dictionary.
+            # Note that keys should correspond to the ones expected by dependency injection.
+            available = {"request": request_object}
+            # Insert headers with their canonical keys.
+            available.update(headers)
+            # Insert query parameters.
+            available.update(query_params)
+            # Also include any path parameters.
+            available.update(path_params or {})
+
+            # Resolve dependencies using the preanalyzed metadata.
+            for dep_name, injected_dep in route.dependencies.items():
+                kwargs[dep_name] = injected_dep.resolve(available)
+
+            # Extract query parameters and path parameters
+            if path_params:
+                for k, v in path_params.items():
+                    if k not in kwargs:
+                        kwargs[k] = v
+
+            if query_params:
+                for k, v in query_params.items():
+                    if k not in kwargs:
+                        kwargs[k] = v
+
             # Handle query parameters
             for name, query in route.query_params.items():
                 query_name = query.alias or snake_to_query_param(name)
@@ -508,8 +660,8 @@ class LambdaApiLight:
                         )
                     else:
                         query_value = query.default
-
-                kwargs[name] = query_value
+                if name not in kwargs:
+                    kwargs[name] = query_value
                 _logger.info(f"Query Parameter: {name} = {query_value}")
 
             # Handle body parameters
@@ -531,15 +683,18 @@ class LambdaApiLight:
                                 400, f"Invalid body for parameter '{name}': {e}"
                             )
                     else:
-                        kwargs[name] = body
-                        _logger.info(f"Body Parameter: {name} = {body}")
+                        if name not in kwargs:
+                            kwargs[name] = body
+                            _logger.info(f"Body Parameter: {name} = {body}")
                 elif param.default != inspect.Parameter.empty:
-                    kwargs[name] = param.default
+                    if name not in kwargs:
+                        kwargs[name] = param.default
                 else:
                     raise HTTPException(400, f"Missing required body parameter: {name}")
 
             for name, _ in route.request_params.items():
-                kwargs[name] = request_object
+                if name not in kwargs:
+                    kwargs[name] = request_object
 
             sig = inspect.signature(route.handler)
             bound_args = {}

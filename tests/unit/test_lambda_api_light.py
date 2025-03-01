@@ -1,5 +1,6 @@
 import json
 import logging
+from typing import Optional
 
 from build.lib.poemai_utils.aws.lambda_api_light import JSONResponse
 from poemai_utils.aws.lambda_api_light import (
@@ -59,6 +60,17 @@ router = APIRouter(prefix=PREFIX)
 root_router = APIRouter(prefix=PREFIX)
 
 
+def verify_auth(authorization: Optional[str] = Header(None)):
+
+    if authorization is None:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    if authorization:
+        token = authorization[7:]  # Remove "Bearer "
+
+    return {"token": token}
+
+
 @root_router.get("/")
 async def get_root(
     application_service: Application = Depends(get_application_service),
@@ -116,6 +128,11 @@ async def get_things():
 @root_router.get("/things/{thing_key}")
 async def get_thing(thing_key: str) -> ThingsData:
     return ThingsData(thing_key=thing_key, thing_data={"key": "value"})
+
+
+@root_router.get("/protected")
+async def get_protected(current_user: dict = Depends(verify_auth)):
+    return {"auth_info": current_user}
 
 
 @root_router.api_route("/proxy/{path:path}", methods=["POST", "GET", "PUT", "DELETE"])
@@ -253,6 +270,10 @@ def test_routes():
         ("/test_api/api/v1/", "GET"),
         ("/test_api/api/v1/error", "GET"),
         (
+            "/test_api/api/v1/protected",
+            "GET",
+        ),
+        (
             "/test_api/api/v1/proxy/{path:path}",
             "DELETE,GET,POST,PUT",
         ),
@@ -383,3 +404,22 @@ def test_proxy():
     assert body_obj.get("query_params") == {"param1": "value1", "param2": "value2"}
 
     assert body_obj["body"] == "request_body_text"
+
+
+def test_protected_route():
+
+    event = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/protected",
+        "queryStringParameters": {},
+        "headers": {"Authorization": "Bearer test_token"},
+        "body": None,
+    }
+
+    response = app.handle_request(event, None)
+    assert response["statusCode"] == 200
+
+    body_text = response["body"]
+    body_obj = json.loads(body_text)
+
+    assert body_obj["auth_info"]["token"] == "test_token"
