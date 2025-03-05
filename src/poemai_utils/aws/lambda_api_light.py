@@ -272,6 +272,13 @@ class HandlingFunction:
         for name, param in self.signature.parameters.items():
             if isinstance(param.default, Query):
                 query_params[name] = param.default
+            elif param.default == inspect.Parameter.empty and param.annotation in (
+                str,
+                int,
+                float,
+                bool,
+            ):
+                query_params[name] = Query()  # Implicitly treat as query param
         return query_params
 
     def _extract_body_params(self) -> Dict[str, inspect.Parameter]:
@@ -669,6 +676,8 @@ class LambdaApiLight:
 
             # Handle query parameters
             for name, query in route.query_params.items():
+                if name in path_params:
+                    continue
                 query_name = query.alias or snake_to_query_param(name)
                 query_value = query_params.get(query_name)
                 if query_value is None:

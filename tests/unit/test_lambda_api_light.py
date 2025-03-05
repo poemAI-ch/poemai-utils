@@ -78,6 +78,7 @@ async def get_root(
     x_user_id: str = Header(None),
     x_required_header: str = Header(...),
     the_query: str = Query(None),
+    implicit_query: Optional[str] = None,
 ):
     return {
         "message": f"Welcome to the api",
@@ -85,6 +86,7 @@ async def get_root(
         "user_id": x_user_id,
         "query": the_query,
         "required_header": x_required_header,
+        "implicit_query": implicit_query,
     }
 
 
@@ -308,6 +310,7 @@ def test_post_thing():
 
     response = app.handle_request(event, None)
 
+    _logger.info(f"Response: {response}")
     assert response["statusCode"] == 201
 
     assert response["headers"]["Location"] == "/test_thing"
@@ -462,3 +465,28 @@ def test_redirect():
 
     assert response["statusCode"] == 307
     assert response["headers"]["Location"] == "/test_api/api/v1/"
+
+
+def test_implicit_query():
+    event = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/",
+        "queryStringParameters": {
+            "implicit_query": "implicit_query_value",
+        },
+        "headers": {
+            "X-User-Id": "test_user_id",
+            "X-Required-Header": "required_test_header",
+        },
+        "body": None,
+    }
+
+    response = app.handle_request(event, None)
+    _logger.info(f"Response: {response}")
+
+    assert response["statusCode"] == 200
+
+    body_text = response["body"]
+    parsed_body = json.loads(body_text)
+
+    assert parsed_body["implicit_query"] == "implicit_query_value"
