@@ -113,11 +113,30 @@ class RedirectResponse:
         self.url = url
         self.status_code = status_code
         self.headers = headers or {}
+        self.cookies_to_delete = []  # Stores cookies to delete
+
+    def delete_cookie(self, key: str, path: str = "/", domain: Optional[str] = None):
+        """
+        Marks a cookie for deletion by setting it with an expired date.
+        """
+        cookie = f"{key}=deleted; Path={path}; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; HttpOnly; Secure"
+        if domain:
+            cookie += f"; Domain={domain}"
+        self.cookies_to_delete.append(cookie)
 
     def to_lambda_response(self):
+        """
+        Converts this response to an AWS Lambda API Gateway-compatible response.
+        """
+        headers = {**self.headers, "Location": self.url}
+
+        # If there are cookies to delete, add them to headers
+        if self.cookies_to_delete:
+            headers["Set-Cookie"] = ", ".join(self.cookies_to_delete)
+
         return {
             "statusCode": self.status_code,
-            "headers": {**self.headers, **{"Location": self.url}},
+            "headers": headers,
         }
 
 

@@ -140,6 +140,20 @@ async def get_protected(current_user: dict = Depends(verify_auth)):
     return {"auth_info": current_user}
 
 
+@root_router.get("/cognito/logout_completed")
+async def cognito_logout_completed():
+    """
+    Simulates a Cognito logout endpoint.
+    Deletes the session cookie and redirects to the logged-out page.
+    """
+    logged_out_url = "/logged_out.html"  # Simulate redirect URL
+
+    response = RedirectResponse(url=logged_out_url)
+    response.delete_cookie("session_token", path="/")  # Remove session cookie
+
+    return response
+
+
 @root_router.api_route("/proxy/{path:path}", methods=["POST", "GET", "PUT", "DELETE"])
 def proxy_request(request: Request, path: str):
     _logger.info(f"Proxying request to path: {path}")
@@ -278,6 +292,10 @@ def test_routes():
 
     assert routes == [
         ("/test_api/api/v1/", "GET"),
+        (
+            "/test_api/api/v1/cognito/logout_completed",
+            "GET",
+        ),
         ("/test_api/api/v1/error", "GET"),
         (
             "/test_api/api/v1/protected",
@@ -492,3 +510,33 @@ def test_implicit_query():
     parsed_body = json.loads(body_text)
 
     assert parsed_body["implicit_query"] == "implicit_query_value"
+
+
+def test_redirect_with_cookie_deletion():
+    """
+    Tests whether the logout route properly removes a session cookie before redirecting.
+    """
+    event = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/cognito/logout_completed",
+        "queryStringParameters": {},
+        "headers": {},
+        "body": None,
+    }
+
+    response = app.handle_request(event, None)
+
+    _logger.info(f"Response: {response}")
+
+    # Validate redirect response
+    assert response["statusCode"] == 307
+    assert response["headers"]["Location"] == "/logged_out.html"  # Redirect target
+
+    # Validate that the session cookie is marked for deletion
+    assert "Set-Cookie" in response["headers"]
+
+    set_cookie_header = response["headers"]["Set-Cookie"]
+    assert "session_token=deleted" in set_cookie_header
+    assert "Max-Age=0" in set_cookie_header
+    assert "Expires=Thu, 01 Jan 1970 00:00:00 GMT" in set_cookie_header
+    assert "Path=/" in set_cookie_header  # Ensure correct cookie path
