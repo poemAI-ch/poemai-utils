@@ -74,6 +74,7 @@ def verify_auth(authorization: Optional[str] = Header(None)):
 
 @root_router.get("/")
 async def get_root(
+    implicit_query_no_default: Optional[str],
     application_service: Application = Depends(get_application_service),
     x_user_id: str = Header(None),
     x_required_header: str = Header(...),
@@ -87,6 +88,7 @@ async def get_root(
         "query": the_query,
         "required_header": x_required_header,
         "implicit_query": implicit_query,
+        "implicit_query_no_default": implicit_query_no_default,
     }
 
 

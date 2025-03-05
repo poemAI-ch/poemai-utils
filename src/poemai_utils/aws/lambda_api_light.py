@@ -7,7 +7,17 @@ import logging
 import re
 from collections import defaultdict
 from types import SimpleNamespace
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    get_args,
+    get_origin,
+)
 from urllib.parse import urlencode, urlparse
 
 _logger = logging.getLogger(__name__)
@@ -266,19 +276,47 @@ class HandlingFunction:
 
     def _extract_query_params(self) -> Dict[str, Query]:
         """
-        Extracts query parameters based on parameters with a default instance of Query.
+        Extracts query parameters based on:
+        - Parameters explicitly using Query(...)
+        - Primitive types (str, int, float, bool) without a default
+        - Optional primitive types (e.g., Optional[str] -> Union[str, NoneType])
         """
         query_params = {}
         for name, param in self.signature.parameters.items():
+            param_type = param.annotation
+            param_origin = get_origin(param_type)
+            param_args = get_args(param_type)
+
+            # Explicitly marked Query param
             if isinstance(param.default, Query):
                 query_params[name] = param.default
-            elif param.default == inspect.Parameter.empty and param.annotation in (
+
+            # Handle `Optional[T]` → actually `Union[T, NoneType]`
+            elif (
+                param_origin is Union
+                and len(param_args) == 2
+                and type(None) in param_args
+            ):
+                non_none_type = [arg for arg in param_args if arg is not type(None)][0]
+                if non_none_type in (
+                    str,
+                    int,
+                    float,
+                    bool,
+                ):  # Ensure it's a simple type
+                    query_params[name] = Query(
+                        None
+                    )  # Implicit Optional[T] defaults to None
+
+            # Simple primitive type without default → Implicit query param
+            elif param.default == inspect.Parameter.empty and param_type in (
                 str,
                 int,
                 float,
                 bool,
             ):
-                query_params[name] = Query()  # Implicitly treat as query param
+                query_params[name] = Query()
+
         return query_params
 
     def _extract_body_params(self) -> Dict[str, inspect.Parameter]:
@@ -676,7 +714,7 @@ class LambdaApiLight:
 
             # Handle query parameters
             for name, query in route.query_params.items():
-                if name in path_params:
+                if name in kwargs:
                     continue
                 query_name = query.alias or snake_to_query_param(name)
                 query_value = query_params.get(query_name)
@@ -693,6 +731,8 @@ class LambdaApiLight:
 
             # Handle body parameters
             for name, param in route.body_params.items():
+                # if name in kwargs:
+                #     continue
                 if body:
 
                     if hasattr(param.annotation, "model_validate"):
