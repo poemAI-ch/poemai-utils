@@ -12,6 +12,7 @@ from poemai_utils.aws.lambda_api_light import (
     Query,
     RedirectResponse,
     Request,
+    StreamingResponse,
 )
 from pydantic import BaseModel
 
@@ -152,6 +153,15 @@ async def cognito_logout_completed():
     response.delete_cookie("session_token", path="/")  # Remove session cookie
 
     return response
+
+
+@root_router.get("/stream")
+async def get_stream():
+    return StreamingResponse(
+        generator=lambda: ["some", "data", "to", "stream"],
+        media_type="application/octet-stream",
+        status_code=200,
+    )
 
 
 @root_router.api_route("/proxy/{path:path}", methods=["POST", "GET", "PUT", "DELETE"])
@@ -308,6 +318,10 @@ def test_routes():
         ("/test_api/api/v1/query_defaults", "GET"),
         (
             "/test_api/api/v1/redirect",
+            "GET",
+        ),
+        (
+            "/test_api/api/v1/stream",
             "GET",
         ),
         ("/test_api/api/v1/things", "GET"),
@@ -540,3 +554,20 @@ def test_redirect_with_cookie_deletion():
     assert "Max-Age=0" in set_cookie_header
     assert "Expires=Thu, 01 Jan 1970 00:00:00 GMT" in set_cookie_header
     assert "Path=/" in set_cookie_header  # Ensure correct cookie path
+
+
+def test_streaming_response():
+    event = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/stream",
+        "queryStringParameters": {},
+        "headers": {},
+        "body": None,
+    }
+
+    response = app.handle_request(event, None)
+
+    assert response["statusCode"] == 200
+
+    body_text = response["body"]
+    assert body_text == "somedatatostream"

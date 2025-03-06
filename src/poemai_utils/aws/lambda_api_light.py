@@ -87,10 +87,12 @@ class StreamingResponse:
         generator: Callable,
         media_type: str = "application/json",
         headers: Dict[str, str] = None,
+        status_code: int = 200,
     ):
         self.generator = generator
         self.media_type = media_type
         self.headers = headers or {"Content-Type": media_type}
+        self.status_code = status_code
 
     def to_lambda_response(self):
         # AWS Lambda expects the entire body to be sent at once.
@@ -100,7 +102,7 @@ class StreamingResponse:
         for chunk in self.generator():
             body += chunk
         return {
-            "statusCode": 200,
+            "statusCode": self.status_code,
             "body": body,
             "headers": self.headers,
         }
