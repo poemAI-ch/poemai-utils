@@ -6,6 +6,7 @@ import json
 import logging
 import re
 from collections import defaultdict
+from enum import Enum
 from types import SimpleNamespace
 from typing import (
     Any,
