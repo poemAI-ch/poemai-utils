@@ -23,7 +23,7 @@ class ThingsData(BaseModel):
     thing_data: dict
 
 
-class TestEnum(Enum):
+class QueryEnum(Enum):
     VALUE1 = "value1"
     VALUE2 = "value2"
     VALUE3 = "value3"
@@ -192,7 +192,7 @@ async def get_redirect():
     return RedirectResponse(url="/test_api/api/v1/")
 
 @root_router.get("/enum_query")
-async def get_enum_query(enum_param: TestEnum = Query(...)):
+async def get_enum_query(enum_param: QueryEnum = Query(...)):
     return {"enum_value": enum_param.value}
 
 app.include_router(root_router)
