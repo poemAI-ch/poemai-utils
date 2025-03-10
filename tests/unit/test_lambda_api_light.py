@@ -184,6 +184,9 @@ def proxy_request(request: Request, path: str):
 async def get_redirect():
     return RedirectResponse(url="/test_api/api/v1/")
 
+@root_router.get("/enum_query")
+async def get_enum_query(enum_param: TestEnum = Query(...)):
+    return {"enum_value": enum_param.value}
 
 app.include_router(root_router)
 
@@ -499,6 +502,29 @@ def test_redirect():
 
     assert response["statusCode"] == 307
     assert response["headers"]["Location"] == "/test_api/api/v1/"
+
+
+def test_enum_query():
+    event = {
+        "httpMethod": "GET",
+        "path": "/test_api/api/v1/enum_query",
+        "queryStringParameters": {"enum_param": "value2"},
+        "headers": {},
+        "body": None,
+    }
+
+    response = app.handle_request(event, None)
+    assert response["statusCode"] == 200
+
+    body_text = response["body"]
+    body_obj = json.loads(body_text)
+
+    assert body_obj["enum_value"] == "value2"
+
+    # Test with invalid enum value
+    event["queryStringParameters"]["enum_param"] = "invalid_value"
+    response = app.handle_request(event, None)
+    assert response["statusCode"] == 400  # Bad Request
 
 
 def test_implicit_query():
