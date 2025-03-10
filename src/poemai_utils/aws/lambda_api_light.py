@@ -61,6 +61,16 @@ def snake_to_query_param(name: str) -> str:
     return name
 
 
+def convert_value(value: str, annotation: Any):
+    if annotation is inspect.Parameter.empty:
+        return value
+    if isinstance(annotation, type) and issubclass(annotation, Enum):
+        return annotation[value]
+    if annotation in (int, float, bool):
+        return annotation(value)
+    return value
+
+
 # Response Classes
 class JSONResponse:
     def __init__(
@@ -182,6 +192,7 @@ class Query:
         """
         self.default = default
         self.alias = alias
+        self.annotation = None  # We'll set this later
 
 
 class Request:
@@ -309,7 +320,9 @@ class HandlingFunction:
 
             # Explicitly marked Query param
             if isinstance(param.default, Query):
-                query_params[name] = param.default
+                query_param = param.default
+                query_param.annotation = param.annotation
+                query_params[name] = query_param
 
             # Handle `Optional[T]` → actually `Union[T, NoneType]`
             elif (
@@ -324,9 +337,9 @@ class HandlingFunction:
                     float,
                     bool,
                 ):  # Ensure it's a simple type
-                    query_params[name] = Query(
-                        None
-                    )  # Implicit Optional[T] defaults to None
+                    query_param = Query(None)
+                    query_param.annotation = non_none_type
+                    query_params[name] = query_param
 
             # Simple primitive type without default → Implicit query param
             elif param.default == inspect.Parameter.empty and param_type in (
@@ -335,7 +348,9 @@ class HandlingFunction:
                 float,
                 bool,
             ):
-                query_params[name] = Query()
+                query_param = Query()
+                query_param.annotation = param_type
+                query_params[name] = query_param
 
         return query_params
 
@@ -742,8 +757,10 @@ class LambdaApiLight:
                         )
                     else:
                         query_value = query.default
-                if name not in kwargs:
-                    kwargs[name] = query_value
+                else:
+                    # Convert the value based on the annotation
+                    query_value = convert_value(query_value, query.annotation)
+                kwargs[name] = query_value
                 _logger.info(f"Query Parameter: {name} = {query_value}")
 
             # Handle body parameters
