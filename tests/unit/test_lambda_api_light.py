@@ -15,11 +15,18 @@ from poemai_utils.aws.lambda_api_light import (
     StreamingResponse,
 )
 from pydantic import BaseModel
+from enum import Enum
 
 
 class ThingsData(BaseModel):
     thing_key: str
     thing_data: dict
+
+
+class TestEnum(Enum):
+    VALUE1 = "value1"
+    VALUE2 = "value2"
+    VALUE3 = "value3"
 
 
 _logger = logging.getLogger(__name__)
