@@ -1,5 +1,6 @@
 import json
 import logging
+from enum import Enum
 from typing import Optional
 
 from build.lib.poemai_utils.aws.lambda_api_light import JSONResponse
@@ -15,7 +16,6 @@ from poemai_utils.aws.lambda_api_light import (
     StreamingResponse,
 )
 from pydantic import BaseModel
-from enum import Enum
 
 
 class ThingsData(BaseModel):
@@ -191,6 +191,7 @@ def proxy_request(request: Request, path: str):
 async def get_redirect():
     return RedirectResponse(url="/test_api/api/v1/")
 
+
 @root_router.get("/enum_query")
 async def get_enum_query(enum_param: QueryEnum = Query(...)):
     _logger.info(f"Received enum_param: {enum_param}, type: {type(enum_param)}")
@@ -200,6 +201,7 @@ async def get_enum_query(enum_param: QueryEnum = Query(...)):
     else:
         _logger.error(f"enum_param is not a QueryEnum instance: {enum_param}")
         raise HTTPException(400, f"Invalid enum value: {enum_param}")
+
 
 app.include_router(root_router)
 

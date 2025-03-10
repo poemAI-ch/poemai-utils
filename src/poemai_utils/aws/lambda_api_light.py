@@ -63,23 +63,18 @@ def snake_to_query_param(name: str) -> str:
 
 
 def convert_value(value: str, annotation: Any):
-    _logger.info(f"Converting value: {value} to type: {annotation}")
     if annotation is inspect.Parameter.empty:
-        _logger.info(f"Annotation is empty, returning value as is: {value}")
         return value
     if isinstance(annotation, type) and issubclass(annotation, Enum):
-        _logger.info(f"Converting to Enum: {annotation}")
         try:
             enum_value = annotation[value]
-            _logger.info(f"Successfully converted to Enum: {enum_value}")
+
             return enum_value
         except KeyError as e:
-            _logger.error(f"Failed to convert to Enum: {e}")
             raise HTTPException(400, f"Invalid value for enum: {value}")
     if annotation in (int, float, bool):
-        _logger.info(f"Converting to {annotation.__name__}")
         return annotation(value)
-    _logger.info(f"No conversion applied, returning value as is: {value}")
+
     return value
 
 
@@ -172,7 +167,7 @@ class HTTPException(Exception):
 
 
 class Depends:
-    def __init__(self, dependency: Callable):        
+    def __init__(self, dependency: Callable):
         self.dependency = dependency
 
         # Check if the dependency is a function
@@ -450,7 +445,7 @@ class InjectedDependency:
         # Use HandlingFunction to analyze the dependency function
         self.hf = HandlingFunction(dep_func)
         self.injection_map = self._compute_injection_map()
-        
+
     def _compute_injection_map(self) -> Dict[str, str]:
         mapping = {}
         for param_name, param in self.hf.signature.parameters.items():
@@ -748,11 +743,6 @@ class LambdaApiLight:
             # Extract query parameters and path parameters
             if path_params:
                 for k, v in path_params.items():
-                    if k not in kwargs:
-                        kwargs[k] = v
-
-            if query_params:
-                for k, v in query_params.items():
                     if k not in kwargs:
                         kwargs[k] = v
 

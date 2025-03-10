@@ -53,3 +53,4 @@ MANIFEST
 .conda*/
 .python-version
 .ai_code_editor_tasks.json
+.aider*
