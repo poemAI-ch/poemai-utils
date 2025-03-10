@@ -150,8 +150,7 @@ class HTTPException(Exception):
 
 
 class Depends:
-    def __init__(self, dependency: Callable):
-        _logger.info(f"Constructing Depends with {dependency}")
+    def __init__(self, dependency: Callable):        
         self.dependency = dependency
 
         # Check if the dependency is a function
@@ -424,10 +423,7 @@ class InjectedDependency:
         # Use HandlingFunction to analyze the dependency function
         self.hf = HandlingFunction(dep_func)
         self.injection_map = self._compute_injection_map()
-        _logger.info(
-            f"Analyzed dependency {dep_func.__name__}: injection_map={self.injection_map}"
-        )
-
+        
     def _compute_injection_map(self) -> Dict[str, str]:
         mapping = {}
         for param_name, param in self.hf.signature.parameters.items():
