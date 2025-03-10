@@ -193,8 +193,13 @@ async def get_redirect():
 
 @root_router.get("/enum_query")
 async def get_enum_query(enum_param: QueryEnum = Query(...)):
-    _logger.info(f"Received enum_param: {enum_param}, value: {enum_param.value}")
-    return {"enum_value": enum_param.value}
+    _logger.info(f"Received enum_param: {enum_param}, type: {type(enum_param)}")
+    if isinstance(enum_param, QueryEnum):
+        _logger.info(f"Enum value: {enum_param.value}")
+        return {"enum_value": enum_param.value}
+    else:
+        _logger.error(f"enum_param is not a QueryEnum instance: {enum_param}")
+        raise HTTPException(400, f"Invalid enum value: {enum_param}")
 
 app.include_router(root_router)
 
