@@ -70,10 +70,10 @@ def convert_value(value: str, annotation: Any):
     if isinstance(annotation, type) and issubclass(annotation, Enum):
         _logger.info(f"Converting to Enum: {annotation}")
         try:
-            enum_value = annotation(value)
+            enum_value = annotation[value]
             _logger.info(f"Successfully converted to Enum: {enum_value}")
             return enum_value
-        except ValueError as e:
+        except KeyError as e:
             _logger.error(f"Failed to convert to Enum: {e}")
             raise HTTPException(400, f"Invalid value for enum: {value}")
     if annotation in (int, float, bool):
@@ -769,7 +769,7 @@ class LambdaApiLight:
                         )
                     else:
                         query_value = query.default
-                else:
+                if query_value is not None:
                     # Convert the value based on the annotation
                     query_value = convert_value(query_value, query.annotation)
                 kwargs[name] = query_value
