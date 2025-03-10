@@ -317,6 +317,7 @@ def test_routes():
             "/test_api/api/v1/cognito/logout_completed",
             "GET",
         ),
+        ("/test_api/api/v1/enum_query", "GET"),
         ("/test_api/api/v1/error", "GET"),
         (
             "/test_api/api/v1/protected",
