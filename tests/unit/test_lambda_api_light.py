@@ -515,7 +515,7 @@ def test_enum_query():
     event = {
         "httpMethod": "GET",
         "path": "/test_api/api/v1/enum_query",
-        "queryStringParameters": {"enum_param": "value2"},
+        "queryStringParameters": {"enum_param": "VALUE2"},
         "headers": {},
         "body": None,
     }
@@ -529,7 +529,7 @@ def test_enum_query():
     assert body_obj["enum_value"] == "value2"
 
     # Test with invalid enum value
-    event["queryStringParameters"]["enum_param"] = "invalid_value"
+    event["queryStringParameters"]["enum_param"] = "INVALID_VALUE"
     response = app.handle_request(event, None)
     assert response["statusCode"] == 400  # Bad Request
 

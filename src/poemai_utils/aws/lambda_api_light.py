@@ -66,7 +66,7 @@ def convert_value(value: str, annotation: Any):
     if annotation is inspect.Parameter.empty:
         return value
     if isinstance(annotation, type) and issubclass(annotation, Enum):
-        return annotation[value]
+        return annotation(value)
     if annotation in (int, float, bool):
         return annotation(value)
     return value
