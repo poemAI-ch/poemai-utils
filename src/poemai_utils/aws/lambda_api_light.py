@@ -63,12 +63,23 @@ def snake_to_query_param(name: str) -> str:
 
 
 def convert_value(value: str, annotation: Any):
+    _logger.info(f"Converting value: {value} to type: {annotation}")
     if annotation is inspect.Parameter.empty:
+        _logger.info(f"Annotation is empty, returning value as is: {value}")
         return value
     if isinstance(annotation, type) and issubclass(annotation, Enum):
-        return annotation(value)
+        _logger.info(f"Converting to Enum: {annotation}")
+        try:
+            enum_value = annotation(value)
+            _logger.info(f"Successfully converted to Enum: {enum_value}")
+            return enum_value
+        except ValueError as e:
+            _logger.error(f"Failed to convert to Enum: {e}")
+            raise HTTPException(400, f"Invalid value for enum: {value}")
     if annotation in (int, float, bool):
+        _logger.info(f"Converting to {annotation.__name__}")
         return annotation(value)
+    _logger.info(f"No conversion applied, returning value as is: {value}")
     return value
 
 

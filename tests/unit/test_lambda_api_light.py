@@ -193,6 +193,7 @@ async def get_redirect():
 
 @root_router.get("/enum_query")
 async def get_enum_query(enum_param: QueryEnum = Query(...)):
+    _logger.info(f"Received enum_param: {enum_param}, value: {enum_param.value}")
     return {"enum_value": enum_param.value}
 
 app.include_router(root_router)
