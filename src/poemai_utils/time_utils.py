@@ -1,7 +1,5 @@
 from datetime import date, datetime, timezone
 
-from dateutil.relativedelta import relativedelta
-
 
 def current_time_iso():
     return datetime.now(timezone.utc).isoformat()
@@ -53,3 +51,21 @@ def semantic_date_difference(
             return f"{prefix} {abs(diff.days)} Tagen"
 
     return "Heute"
+
+
+def parse_time_iso(s: str) -> datetime:
+    """
+    Parses an ISO 8601 timestamp string into a timezone-aware UTC datetime object.
+    Handles both 'Z' (UTC) and offset timezones.
+    """
+    if s.endswith("Z"):
+        # Replace Z with +00:00 for fromisoformat compatibility
+        s = s[:-1] + "+00:00"
+    dt = datetime.fromisoformat(s)
+    if dt.tzinfo is None:
+        # Treat naive datetime as UTC
+        dt = dt.replace(tzinfo=timezone.utc)
+    else:
+        # Convert any tz-aware datetime to UTC
+        dt = dt.astimezone(timezone.utc)
+    return dt

@@ -67,7 +67,7 @@ class DynamoDBEmulator:
                 )
 
             serialized_item = DynamoDB.ddb_type_serializer.serialize(item)
-            _logger.info(
+            _logger.debug(
                 f"Storing serialized_item {serialized_item} with composite key {composite_key}"
             )
             # Store the item
@@ -340,7 +340,7 @@ class DynamoDBEmulator:
 
         serialized_results = []
         for item in results:
-            _logger.info(f"Trying to deserialize item {item}")
+            _logger.debug(f"Trying to deserialize item {item}")
             for key, value in item.items():
                 if hasattr(value, "value"):
                     item[key] = value.value
@@ -382,7 +382,7 @@ class DynamoDBEmulator:
                 break
 
             # item = {"M": item}
-            _logger.info(f"Yielding item {item}")
+            _logger.debug(f"Yielding item {item}")
             yield item
 
     def get_paginated_items_starting_at_pk_sk(self, table_name, pk, sk, limit=100):
@@ -407,5 +407,5 @@ class DynamoDBEmulator:
             limit=limit,
         ):
             item_dict = DynamoDB.item_to_dict(item)
-            _logger.info(f"Yielding item_dict {item_dict}")
+            _logger.debug(f"Yielding item_dict {item_dict}")
             yield item_dict
