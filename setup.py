@@ -7,11 +7,17 @@
     Learn more under: https://pyscaffold.org/
 """
 
+import os
+from pathlib import Path
+
 from setuptools import setup
 
 if __name__ == "__main__":
     try:
-        setup(version="1.18.0")
+        version = os.environ.get("POEMAI_BUILD_VERSION")
+        if version is None:
+            version = Path(__file__).parent.joinpath("VERSION.txt").read_text().strip()
+        setup(version=version)
     except:  # noqa
         print(
             "\n\nAn error occurred while building the project, "

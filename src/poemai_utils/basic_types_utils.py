@@ -1,3 +1,6 @@
+from decimal import Decimal
+
+
 def linebreak(text, max_length=80):
     """Add linebreaks to text to make it more readable"""
 
