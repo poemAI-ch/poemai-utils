@@ -3,12 +3,12 @@ import logging
 from enum import Enum
 from typing import Optional
 
-from build.lib.poemai_utils.aws.lambda_api_light import JSONResponse
 from poemai_utils.aws.lambda_api_light import (
     APIRouter,
     Depends,
     Header,
     HTTPException,
+    JSONResponse,
     LambdaApiLight,
     Query,
     RedirectResponse,

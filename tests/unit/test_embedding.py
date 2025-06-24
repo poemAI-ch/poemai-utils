@@ -1,7 +1,7 @@
 import numpy as np
-from build.lib.poemai_utils.embeddings.embedding_store import EmbeddingStore
 from poemai_utils.embeddings.embedder_base import EmbedderBase
 from poemai_utils.embeddings.embedder_factory import make_embedder
+from poemai_utils.embeddings.embedding_store import EmbeddingStore
 from poemai_utils.embeddings.openai_embedder import OpenAIEmbedder
 from poemai_utils.embeddings.sentence_transformer_embedder import (
     SentenceTransformerEmbedder,
