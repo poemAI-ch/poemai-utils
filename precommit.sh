@@ -5,9 +5,35 @@ isort  $(find src -name '*.py' )  ; black  $(find src  -name '*.py' )  ; isort  
 npx prettier --write  .github/workflows/*.yml
 remote_branch=$(git rev-parse --abbrev-ref --symbolic-full-name @{u})
 
-v=$(git show "$remote_branch":VERSION.txt)
-echo "${v%.*}.$((${v##*.}+1))" > VERSION.txt
+# Get the upstream version
+upstream_version=$(git show "$remote_branch":VERSION.txt)
 
-echo "----------------------------------------"
-echo "VERSION.txt updated to $(cat VERSION.txt)"
-echo "----------------------------------------"
+# Check if VERSION.txt has been modified (either in working directory or staged)
+version_modified=false
+
+# Check if VERSION.txt is different from upstream in working directory
+if ! git diff --quiet "$remote_branch" -- VERSION.txt; then
+    version_modified=true
+fi
+
+# Check if VERSION.txt is staged (different from HEAD)
+if git diff --cached --quiet VERSION.txt; then
+    # No staged changes
+    :
+else
+    version_modified=true
+fi
+
+if [ "$version_modified" = true ]; then
+    echo "----------------------------------------"
+    echo "VERSION.txt has been manually modified - skipping auto-increment"
+    echo "Current version: $(cat VERSION.txt)"
+    echo "----------------------------------------"
+else
+    # Auto-increment version
+    new_version="${upstream_version%.*}.$((${upstream_version##*.}+1))"
+    echo "$new_version" > VERSION.txt
+    echo "----------------------------------------"
+    echo "VERSION.txt auto-incremented to $(cat VERSION.txt)"
+    echo "----------------------------------------"
+fi

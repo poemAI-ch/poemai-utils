@@ -33,6 +33,13 @@ class OPENAI_MODEL(str, Enum):
     O1_PREVIEW_2024_09_12 = "o1-preview-2024-09-12"
     O1_MINI = "o1-mini"
     O1_MINI_2024_09_12 = "o1-mini-2024-09-12"
+    GPT_5_NANO = "gpt-5-nano"
+    GPT_5 = "gpt-5"
+    GPT_5_MINI_2025_08_07 = "gpt-5-mini-2025-08-07"
+    GPT_5_MINI = "gpt-5-mini"
+    GPT_5_NANO_2025_08_07 = "gpt-5-nano-2025-08-07"
+    GPT_5_CHAT_LATEST = "gpt-5-chat-latest"
+    GPT_5_2025_08_07 = "gpt-5-2025-08-07"
 
     @classmethod
     def by_model_key(cls, model_key):
@@ -63,6 +70,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": True,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_1_2025_04_14: {
             "model_key": "gpt-4.1-2025-04-14",
@@ -71,6 +79,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": True,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_5_PREVIEW: {
             "model_key": "gpt-4.5-preview",
@@ -79,6 +88,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": True,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_5_PREVIEW_2025_02_27: {
             "model_key": "gpt-4.5-preview-2025-02-27",
@@ -87,6 +97,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": True,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_o: {
             "model_key": "gpt-4o",
@@ -95,6 +106,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_o_2024_05_13: {
             "model_key": "gpt-4o-2024-05-13",
@@ -103,6 +115,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_o_2024_08_06: {
             "model_key": "gpt-4o-2024-08-06",
@@ -111,6 +124,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_o_CHATGPT_LATEST: {
             "model_key": "chatgpt-4o-latest",
@@ -119,6 +133,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_TURBO: {
             "model_key": "gpt-4-0125-preview",
@@ -127,6 +142,7 @@ add_enum_attrs(
             "supports_vision": False,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_TURBO_2024_04_09: {
             "model_key": "gpt-4-turbo-2024-04-09",
@@ -135,6 +151,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_TURBO_PREVIEW: {
             "model_key": "gpt-4-turbo-preview",
@@ -143,6 +160,7 @@ add_enum_attrs(
             "supports_vision": False,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_0125_PREVIEW: {
             "model_key": "gpt-4-0125-preview",
@@ -151,6 +169,7 @@ add_enum_attrs(
             "supports_vision": False,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_TURBO_1106_PREVIEW: {
             "model_key": "gpt-4-1106-preview",
@@ -159,6 +178,7 @@ add_enum_attrs(
             "supports_vision": False,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_VISION_PREVIEW: {
             "model_key": "gpt-4-vision-preview",
@@ -167,6 +187,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_3_5_TURBO: {
             "model_key": "gpt-3.5-turbo",
@@ -175,6 +196,7 @@ add_enum_attrs(
             "supports_vision": False,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_3_5_TURBO_1106: {
             "model_key": "gpt-3.5-turbo-1106",
@@ -183,6 +205,7 @@ add_enum_attrs(
             "supports_vision": False,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_3_5_TURBO_16k: {
             "model_key": "gpt-3.5-turbo-16k",
@@ -191,6 +214,7 @@ add_enum_attrs(
             "supports_vision": False,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_3_5_TURBO_0125: {
             "model_key": "gpt-3.5-turbo-0125",
@@ -199,6 +223,7 @@ add_enum_attrs(
             "supports_vision": False,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_3_5_TURBO_0613: {
             "model_key": "gpt-3.5-turbo-0613",
@@ -207,6 +232,7 @@ add_enum_attrs(
             "supports_vision": False,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.ADA_002_EMBEDDING: {
             "model_key": "text-embedding-ada-002",
@@ -215,6 +241,7 @@ add_enum_attrs(
             "supports_vision": False,
             "embeddings_dimensions": 1536,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.TEXT_EMBEDDING_3_LARGE: {
             "model_key": "text-embedding-3-large",
@@ -223,6 +250,7 @@ add_enum_attrs(
             "supports_vision": False,
             "embeddings_dimensions": 3072,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.TEXT_EMBEDDING_3_SMALL: {
             "model_key": "text-embedding-3-small",
@@ -231,6 +259,7 @@ add_enum_attrs(
             "supports_vision": False,
             "embeddings_dimensions": 1536,
             "requires_max_completion_tokens": False,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_o_MINI: {
             "model_key": "gpt-4o-mini",
@@ -239,6 +268,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": True,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.GPT_4_o_MINI_2024_07_18: {
             "model_key": "gpt-4o-mini-2024-07-18",
@@ -247,6 +277,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": True,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.O1_PREVIEW: {
             "model_key": "o1-preview",
@@ -255,6 +286,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": True,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.O1_PREVIEW_2024_09_12: {
             "model_key": "o1-preview-2024-09-12",
@@ -263,6 +295,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": True,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.O1_MINI: {
             "model_key": "o1-mini",
@@ -271,6 +304,7 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": True,
+            "supports_temperature": True,
         },
         OPENAI_MODEL.O1_MINI_2024_09_12: {
             "model_key": "o1-mini-2024-09-12",
@@ -279,6 +313,70 @@ add_enum_attrs(
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": True,
+            "supports_temperature": True,
+        },
+        OPENAI_MODEL.GPT_5_NANO: {
+            "model_key": "gpt-5-nano",
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
+            "expensive": False,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+        },
+        OPENAI_MODEL.GPT_5: {
+            "model_key": "gpt-5",
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
+            "expensive": True,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+        },
+        OPENAI_MODEL.GPT_5_MINI_2025_08_07: {
+            "model_key": "gpt-5-mini-2025-08-07",
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
+            "expensive": False,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+        },
+        OPENAI_MODEL.GPT_5_MINI: {
+            "model_key": "gpt-5-mini",
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
+            "expensive": False,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+        },
+        OPENAI_MODEL.GPT_5_NANO_2025_08_07: {
+            "model_key": "gpt-5-nano-2025-08-07",
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
+            "expensive": False,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+        },
+        OPENAI_MODEL.GPT_5_CHAT_LATEST: {
+            "model_key": "gpt-5-chat-latest",
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
+            "expensive": True,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+        },
+        OPENAI_MODEL.GPT_5_2025_08_07: {
+            "model_key": "gpt-5-2025-08-07",
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
+            "expensive": True,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
         },
     }
 )

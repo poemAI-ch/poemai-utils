@@ -15,7 +15,7 @@ _logger = logging.getLogger(__name__)
 
 
 class DynamoDBEmulator:
-    def __init__(self, sqlite_filename):
+    def __init__(self, sqlite_filename, enforce_index_existence=False):
         if sqlite_filename is not None:
             _logger.info(f"Using SQLite data store: {sqlite_filename}")
             self.data_table = SqliteDict(sqlite_filename, tablename="data")
@@ -27,6 +27,10 @@ class DynamoDBEmulator:
             self.index_table = {}
             self.is_sqlite = False
         self.lock = threading.Lock()
+        self.enforce_index_existence = enforce_index_existence
+        self.indexes = (
+            {}
+        )  # Store index definitions: {table_name: {index_name: index_spec}}
 
     def _get_composite_key(self, table_name, pk, sk):
         return f"{table_name}___##___{pk}___##___{sk}"
@@ -67,9 +71,7 @@ class DynamoDBEmulator:
                 )
 
             serialized_item = DynamoDB.ddb_type_serializer.serialize(item)
-            _logger.debug(
-                f"Storing serialized_item {serialized_item} with composite key {composite_key}"
-            )
+            _logger.debug(f"Storing serialized_item with composite key {composite_key}")
             # Store the item
             self.data_table[composite_key] = serialized_item
 
@@ -368,6 +370,19 @@ class DynamoDBEmulator:
         limit=100,
         index_name=None,
     ):
+        # Check if index enforcement is enabled and index exists
+        if (
+            self.enforce_index_existence
+            and index_name
+            and (
+                table_name not in self.indexes
+                or index_name not in self.indexes[table_name]
+            )
+        ):
+            raise ValueError(
+                f"Index {index_name} not found. Use add_index() to define it first."
+            )
+
         # we ignore the index and just do a full table scan
         for i, item in enumerate(
             self.query(
@@ -380,6 +395,24 @@ class DynamoDBEmulator:
         ):
             if i >= limit:
                 break
+
+            # Apply index projection if index is specified
+            if index_name:
+                item_dict = DynamoDB.item_to_dict(item)
+                # For simplicity, assume table keys are 'pk' and 'sk'
+                table_key_attributes = ["pk", "sk"]
+                projected_item = self._apply_index_projection(
+                    item_dict, table_name, index_name, table_key_attributes
+                )
+                try:
+                    item = DynamoDB.dict_to_item(projected_item)
+                except Exception as e:
+                    # If serialization fails (e.g., due to Binary objects),
+                    # use the original item without projection to avoid breaking functionality
+                    _logger.debug(
+                        f"Failed to serialize projected item due to {e}, using original item"
+                    )
+                    pass  # Keep the original item
 
             # item = {"M": item}
             _logger.debug(f"Yielding item {item}")
@@ -409,3 +442,98 @@ class DynamoDBEmulator:
             item_dict = DynamoDB.item_to_dict(item)
             _logger.debug(f"Yielding item_dict {item_dict}")
             yield item_dict
+
+    def add_index(
+        self,
+        table_name,
+        index_name,
+        projection_type,
+        hash_key,
+        sort_key=None,
+        non_key_attributes=None,
+    ):
+        """
+        Add an index definition to the emulator.
+
+        Args:
+            table_name: Name of the table
+            index_name: Name of the index
+            projection_type: One of "KEYS_ONLY", "ALL", or "INCLUDE"
+            hash_key: Hash key attribute name for the index
+            sort_key: Sort key attribute name for the index (optional)
+            non_key_attributes: List of non-key attributes to include (only used with "INCLUDE")
+        """
+        # Validate projection_type
+        valid_projection_types = ["KEYS_ONLY", "ALL", "INCLUDE"]
+        if projection_type not in valid_projection_types:
+            raise ValueError(
+                f"projection_type must be one of {valid_projection_types}, got {projection_type}"
+            )
+
+        # Validate INCLUDE projection type has non_key_attributes
+        if projection_type == "INCLUDE" and not non_key_attributes:
+            raise ValueError(
+                "projected_attributes must be provided when projection_type is INCLUDE"
+            )
+
+        if table_name not in self.indexes:
+            self.indexes[table_name] = {}
+
+        self.indexes[table_name][index_name] = {
+            "projection_type": projection_type,
+            "hash_key": hash_key,
+            "sort_key": sort_key,
+            "non_key_attributes": non_key_attributes or [],
+        }
+
+    def _apply_index_projection(
+        self, item, table_name, index_name, table_key_attributes=None
+    ):
+        """
+        Apply index projection to an item based on the projection type.
+
+        Args:
+            item: The item to project
+            table_name: Name of the table
+            index_name: Name of the index
+            table_key_attributes: List of table's key attributes (hash and sort keys)
+
+        Returns:
+            Projected item according to the index projection type
+        """
+        if not self.enforce_index_existence:
+            return item
+
+        if table_name not in self.indexes or index_name not in self.indexes[table_name]:
+            return item
+
+        index_spec = self.indexes[table_name][index_name]
+        projection_type = index_spec["projection_type"]
+
+        if projection_type == "ALL":
+            return item
+
+        # Collect attributes to include in projection
+        projected_attributes = set()
+
+        # Always include index key attributes
+        projected_attributes.add(index_spec["hash_key"])
+        if index_spec["sort_key"]:
+            projected_attributes.add(index_spec["sort_key"])
+
+        # Always include table key attributes
+        if table_key_attributes:
+            projected_attributes.update(table_key_attributes)
+
+        if projection_type == "INCLUDE":
+            # Include specified non-key attributes
+            projected_attributes.update(index_spec["non_key_attributes"])
+        # For KEYS_ONLY, we only include the key attributes already added
+
+        # Create projected item
+        projected_item = {}
+        for attr in projected_attributes:
+            if attr in item:
+                projected_item[attr] = item[attr]
+
+        return projected_item

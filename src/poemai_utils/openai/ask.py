@@ -144,7 +144,15 @@ class Ask:
         #     }
 
         if temperature is not None:
-            args["temperature"] = temperature
+            # Check if the model supports temperature parameter
+            if (
+                hasattr(self.model, "supports_temperature")
+                and not self.model.supports_temperature
+            ):
+                # Skip adding temperature for models that don't support it
+                pass
+            else:
+                args["temperature"] = temperature
         if additional_args is not None:
             args.update(additional_args)
 
@@ -268,18 +276,46 @@ class Ask:
                 f"Cache miss for for model {self.model} cache_key {cache_key}"
             )
             if temperature is not None:
-                additional_args["temperature"] = temperature
+                # Only add temperature if the model supports it
+                if (
+                    hasattr(self.model, "supports_temperature")
+                    and not self.model.supports_temperature
+                ):
+                    # Skip adding temperature for models that don't support it
+                    pass
+                else:
+                    additional_args["temperature"] = temperature
             if AIApiType.CHAT_COMPLETIONS in self.model.api_types:
-                answer = self.ask_chat(
-                    prompt,
-                    max_tokens,
-                    stop,
-                    suffix,
-                    system_prompt,
-                    messages,
-                    json_mode=json_mode,
-                    additional_args=additional_args,
-                )
+                # Only pass temperature if the model supports it
+                if (
+                    hasattr(self.model, "supports_temperature")
+                    and not self.model.supports_temperature
+                ):
+                    # For models that don't support temperature, don't pass it
+                    answer = self.ask_chat(
+                        prompt,
+                        temperature=None,  # Don't pass temperature
+                        max_tokens=max_tokens,
+                        stop=stop,
+                        suffix=suffix,
+                        system_prompt=system_prompt,
+                        messages=messages,
+                        json_mode=json_mode,
+                        additional_args=additional_args,
+                    )
+                else:
+                    # For models that support temperature, pass it normally
+                    answer = self.ask_chat(
+                        prompt,
+                        temperature,
+                        max_tokens,
+                        stop,
+                        suffix,
+                        system_prompt,
+                        messages,
+                        json_mode=json_mode,
+                        additional_args=additional_args,
+                    )
             elif AIApiType.COMPLETIONS in self.model.api_types:
                 answer = self.ask_completion(
                     prompt,
@@ -570,10 +606,19 @@ class AsyncOpenai:
         data = {
             "model": self.model.model_key,
             "messages": messages,
-            "temperature": temperature,
             "stream": True,
             "stream_options": {"include_usage": True},
         }
+
+        # Only add temperature if the model supports it
+        if (
+            hasattr(self.model, "supports_temperature")
+            and not self.model.supports_temperature
+        ):
+            # Skip adding temperature for models that don't support it
+            pass
+        else:
+            data["temperature"] = temperature
         if stop is not None:
             data["stop"] = stop
 

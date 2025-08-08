@@ -1,10 +1,11 @@
 import asyncio
 import json
 import logging
-from unittest.mock import AsyncMock, MagicMock, PropertyMock
+from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
 
 import pytest
 from poemai_utils.openai.ask import Ask
+from poemai_utils.openai.openai_model import OPENAI_MODEL
 
 _logger = logging.getLogger(__name__)
 
@@ -88,3 +89,91 @@ async def test_async_ask():
 
     assert async_client_mock.stream.call_args[0][0] == "POST"
     assert async_client_mock.stream.call_args[0][1] == FULL_BASE_URL
+
+
+def test_temperature_handling_for_models_without_support():
+    """Test that temperature parameter is skipped for models that don't support it."""
+    # Mock the OpenAI client
+    with patch("openai.OpenAI") as mock_openai_class:
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+
+        # Mock the response from OpenAI API
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Paris is the capital of France."
+        mock_client.chat.completions.create.return_value = mock_response
+
+        # Test with a GPT-5 model that doesn't support temperature
+        ask = Ask(model=OPENAI_MODEL.GPT_5, openai_api_key="test_key")
+
+        # Call ask with temperature=0 (which should be ignored)
+        response = ask.ask("What is the capital of France?", temperature=0)
+
+        # Verify the response
+        assert response == "Paris is the capital of France."
+
+        # Verify that the OpenAI client was called without temperature parameter
+        mock_client.chat.completions.create.assert_called_once()
+        call_args = mock_client.chat.completions.create.call_args
+
+        # Check that temperature is NOT in the kwargs
+        assert "temperature" not in call_args.kwargs
+
+        # Verify model and messages are correct
+        assert call_args.kwargs["model"] == "gpt-5"
+        assert call_args.kwargs["messages"] == [
+            {"role": "user", "content": "What is the capital of France?"}
+        ]
+
+
+def test_temperature_handling_for_models_with_support():
+    """Test that temperature parameter is passed for models that support it."""
+    # Mock the OpenAI client
+    with patch("openai.OpenAI") as mock_openai_class:
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+
+        # Mock the response from OpenAI API
+        mock_response = MagicMock()
+        mock_response.choices = [MagicMock()]
+        mock_response.choices[0].message.content = "Paris is the capital of France."
+        mock_client.chat.completions.create.return_value = mock_response
+
+        # Test with a GPT-4o model that supports temperature
+        ask = Ask(model=OPENAI_MODEL.GPT_4_o, openai_api_key="test_key")
+
+        # Call ask with temperature=0.5
+        response = ask.ask("What is the capital of France?", temperature=0.5)
+
+        # Verify the response
+        assert response == "Paris is the capital of France."
+
+        # Verify that the OpenAI client was called with temperature parameter
+        mock_client.chat.completions.create.assert_called_once()
+        call_args = mock_client.chat.completions.create.call_args
+
+        # Check that temperature IS in the kwargs
+        assert call_args.kwargs["temperature"] == 0.5
+
+        # Verify model and messages are correct
+        assert call_args.kwargs["model"] == "gpt-4o"
+        assert call_args.kwargs["messages"] == [
+            {"role": "user", "content": "What is the capital of France?"}
+        ]
+
+
+def test_temperature_handling_in_async_mode():
+    """Test that temperature handling works correctly in async mode for models without support."""
+    # Test with GPT-5 model
+    with patch("openai.OpenAI"):
+        ask = Ask(model=OPENAI_MODEL.GPT_5, openai_api_key="test_key")
+
+        # Check that the model doesn't support temperature
+        assert hasattr(ask.model, "supports_temperature")
+        assert ask.model.supports_temperature == False
+
+        # Check that the AsyncOpenai instance also has the correct model
+        assert ask.async_openai.model == ask.model
+        assert hasattr(ask.async_openai.model, "supports_temperature")
+        assert ask.async_openai.model.supports_temperature == False
