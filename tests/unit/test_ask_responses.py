@@ -44,7 +44,8 @@ class TestAskResponses(unittest.TestCase):
         self.assertEqual(request_data["model"], "gpt-4o-mini")
         self.assertEqual(request_data["input"], "Hello, world!")
         self.assertEqual(request_data["instructions"], "Be helpful.")
-        self.assertEqual(request_data["max_tokens"], 100)
+        # max_tokens is no longer sent to the Responses API (by design - it's not supported)
+        self.assertNotIn("max_tokens", request_data)
 
         # Verify response
         self.assertIsInstance(response, PydanticLikeBox)

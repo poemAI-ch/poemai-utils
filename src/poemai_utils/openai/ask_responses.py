@@ -122,7 +122,7 @@ class AskResponses:
         model: Optional[str] = None,
         instructions: Optional[str] = None,
         temperature: float = 0,
-        max_tokens: Optional[int] = 600,
+        max_tokens: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
@@ -144,7 +144,7 @@ class AskResponses:
             instructions: System instructions for the model (replaces system messages)
             model: Model to use (overrides instance default)
             temperature: Sampling temperature (0-2)
-            max_tokens: Maximum tokens to generate
+            max_tokens: IGNORED - The Responses API does not support max_tokens parameter
             stop: Stop sequences
             tools: Available tools/functions
             tool_choice: Tool choice strategy
@@ -174,8 +174,8 @@ class AskResponses:
         if instructions is not None:
             data["instructions"] = instructions
 
-        if max_tokens is not None:
-            data["max_tokens"] = max_tokens
+        # Note: max_tokens is NOT supported by the OpenAI Responses API
+        # Removed: if max_tokens is not None: data["max_tokens"] = max_tokens
 
         if stop is not None:
             data["stop"] = stop
@@ -275,7 +275,7 @@ class AskResponses:
         instructions: Optional[str] = None,
         model: Optional[str] = None,
         temperature: float = 0,
-        max_tokens: Optional[int] = 600,
+        max_tokens: Optional[int] = None,
     ) -> str:
         """
         Simplified interface for basic text generation.
@@ -285,7 +285,7 @@ class AskResponses:
             instructions: System instructions (optional)
             model: Model to use (overrides instance default)
             temperature: Sampling temperature
-            max_tokens: Maximum tokens to generate
+            max_tokens: IGNORED - The Responses API does not support max_tokens parameter
 
         Returns:
             Generated text as a string

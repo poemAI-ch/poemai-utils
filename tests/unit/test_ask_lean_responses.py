@@ -62,7 +62,8 @@ class TestAskLeanResponses(unittest.TestCase):
         self.assertEqual(request_data["input"], "What is the capital of France?")
         self.assertEqual(request_data["instructions"], "You are a helpful assistant.")
         self.assertEqual(request_data["temperature"], 0.7)
-        self.assertEqual(request_data["max_tokens"], 150)
+        # max_tokens is no longer sent to the Responses API (by design - it's not supported)
+        self.assertNotIn("max_tokens", request_data)
 
         # Verify the response is converted back to Chat Completions format
         self.assertEqual(
