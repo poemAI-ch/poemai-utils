@@ -15,7 +15,12 @@ _logger = logging.getLogger(__name__)
 
 
 class DynamoDBEmulator:
-    def __init__(self, sqlite_filename, enforce_index_existence=False):
+    def __init__(
+        self,
+        sqlite_filename,
+        enforce_index_existence=False,
+        eventual_consistency_config=None,
+    ):
         if sqlite_filename is not None:
             _logger.info(f"Using SQLite data store: {sqlite_filename}")
             self.data_table = SqliteDict(sqlite_filename, tablename="data")
@@ -31,6 +36,13 @@ class DynamoDBEmulator:
         self.indexes = (
             {}
         )  # Store index definitions: {table_name: {index_name: index_spec}}
+
+        # Eventual consistency simulation
+        self.eventual_consistency_config = eventual_consistency_config or {}
+        self.stale_reads_remaining = (
+            {}
+        )  # tracks how many stale reads remain for each key
+        self.previous_versions = {}  # stores previous versions of items
 
     def _get_composite_key(self, table_name, pk, sk):
         return f"{table_name}___##___{pk}___##___{sk}"
@@ -70,6 +82,19 @@ class DynamoDBEmulator:
                     exc_info=True,
                 )
 
+            # Store previous version for eventual consistency simulation
+            if composite_key in self.data_table:
+                self.previous_versions[composite_key] = self.data_table[composite_key]
+
+            # Check if this item should have eventual consistency simulation
+            if self._should_simulate_eventual_consistency(table_name, pk, sk):
+                # Configure how many stale reads should return the old version
+                delay_reads = self.eventual_consistency_config.get("delay_reads", 2)
+                self.stale_reads_remaining[composite_key] = delay_reads
+                _logger.debug(
+                    f"Configured {delay_reads} stale reads for {composite_key}"
+                )
+
             serialized_item = DynamoDB.ddb_type_serializer.serialize(item)
             _logger.debug(f"Storing serialized_item with composite key {composite_key}")
             # Store the item
@@ -82,6 +107,27 @@ class DynamoDBEmulator:
 
             self.index_table[index_key] = index_list
             self._commit()
+
+    def _should_simulate_eventual_consistency(self, table_name, pk, sk):
+        """
+        Determine if eventual consistency should be simulated for this item.
+        Returns True if the item matches any of the configured patterns.
+        """
+        if not self.eventual_consistency_config.get("enabled", False):
+            return False
+
+        patterns = self.eventual_consistency_config.get("patterns", [])
+        for pattern in patterns:
+            if pattern.get("table_name") == table_name:
+                if "pk_pattern" in pattern:
+                    if re.match(pattern["pk_pattern"], pk):
+                        return True
+                elif "pk" in pattern and pattern["pk"] == pk:
+                    if "sk" in pattern and pattern["sk"] == sk:
+                        return True
+                    elif "sk" not in pattern:
+                        return True
+        return False
 
     def store_new_item(self, table_name, item, primary_key_name):
         """Store an item only if it does not already exist."""
@@ -136,6 +182,29 @@ class DynamoDBEmulator:
     def get_item_by_pk_sk(self, table_name, pk, sk):
         composite_key = self._get_composite_key(table_name, pk, sk)
 
+        # Check if this read should return stale data due to eventual consistency
+        with self.lock:
+            if (
+                composite_key in self.stale_reads_remaining
+                and self.stale_reads_remaining[composite_key] > 0
+            ):
+                self.stale_reads_remaining[composite_key] -= 1
+                stale_data = self.previous_versions.get(composite_key)
+                _logger.info(
+                    f"Returning stale data for {composite_key}, {self.stale_reads_remaining[composite_key]} stale reads remaining"
+                )
+
+                if stale_data is not None:
+                    retval = DynamoDB.ddb_type_deserializer.deserialize(stale_data)
+                    if retval:
+                        retval["pk"] = pk
+                        retval["sk"] = sk
+                    return retval
+                else:
+                    # No previous version exists, return None to simulate item not found
+                    return None
+
+        # Return current data
         retval_serialized = self.data_table.get(composite_key, None)
         if retval_serialized is None:
             retval = None
@@ -537,3 +606,8 @@ class DynamoDBEmulator:
                 projected_item[attr] = item[attr]
 
         return projected_item
+
+    def make_consistent(self):
+        # reset stale data so that latest data is returned
+        _logger.info(f"Making all reads consistent by resetting stale read counters")
+        self.stale_reads_remaining = {k: 0 for k in self.stale_reads_remaining.keys()}
