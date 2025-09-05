@@ -72,7 +72,18 @@ class OpenAIEmbedderLean(EmbedderBase):
         self.base_url = base_url
 
         openai_model_id_enum = None
-        # Validate model and retrieve dimension info from poemai_utils
+
+        # If base_url is not the default OpenAI URL, allow custom models
+        if base_url != "https://api.openai.com/v1":
+            # For custom base URLs, we allow custom model names
+            # and set embeddings_dimensions to None (will be determined at runtime)
+            _logger.info(f"Using custom base_url {base_url} for model {model_name}")
+            self.model_key = model_name
+            self.embeddings_dimensions = None
+            _logger.info(f"Initialized OpenAIEmbedder with custom model {model_name}")
+            return
+
+        # For default OpenAI URL, validate model and retrieve dimension info from poemai_utils
         try:
             openai_model_id_enum = OPENAI_MODEL(model_name)
         except ValueError:
