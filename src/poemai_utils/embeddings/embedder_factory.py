@@ -1,4 +1,5 @@
-from numpy import deprecate
+import warnings
+
 from poemai_utils.ai_model import AIApiType
 from poemai_utils.embeddings.embedder_base import EmbedderBase
 from poemai_utils.embeddings.openai_embedder import OpenAIEmbedder
@@ -9,8 +10,12 @@ from poemai_utils.embeddings.sentence_transformer_embedder import (
 from poemai_utils.openai.openai_model import OPENAI_MODEL
 
 
-@deprecate
 def make_embedder(model_id: str, **kwargs) -> EmbedderBase:
+    warnings.warn(
+        "make_embedder is deprecated. Use the specific embedder classes directly.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
     try:
         transformer_args = {
             k: v for k, v in kwargs.items() if k in ["use_cosine_similarity"]
