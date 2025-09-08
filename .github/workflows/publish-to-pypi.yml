@@ -32,6 +32,8 @@ jobs:
           pip install setuptools wheel
           # Install the package in development mode with test dependencies
           pip install -e .[testing]
+          # Install additional test dependencies that aren't hard requirements
+          pip install boto3 python-dateutil pytest-asyncio boto3 numpy
 
       - name: Run unit tests
         run: |
