@@ -28,22 +28,33 @@ def test_embedding():
     embedding_store.add_text("abc")
 
 
+try:
+    import sentence_transformers
+
+    HAS_SENTENCE_TRANSFORMERS = True
+except ImportError:
+    HAS_SENTENCE_TRANSFORMERS = False
+
+
 def test_embedding_factory():
 
     openai_embedder = make_embedder("text-embedding-ada-002", openai_api_key="test-key")
 
     assert isinstance(openai_embedder, OpenAIEmbedder)
 
-    labse_embedder = make_embedder("sentence-transformers/LaBSE")
-    assert isinstance(labse_embedder, SentenceTransformerEmbedder)
+    if HAS_SENTENCE_TRANSFORMERS:
+        labse_embedder = make_embedder("sentence-transformers/LaBSE")
+        assert isinstance(labse_embedder, SentenceTransformerEmbedder)
 
-    distiluse_embedder = make_embedder("distiluse-base-multilingual-cased-v1")
-    assert isinstance(distiluse_embedder, SentenceTransformerEmbedder)
+        distiluse_embedder = make_embedder("distiluse-base-multilingual-cased-v1")
+        assert isinstance(distiluse_embedder, SentenceTransformerEmbedder)
 
-    bi_electra_german_embedder = make_embedder(
-        "svalabs/bi-electra-ms-marco-german-uncased"
-    )
-    assert isinstance(bi_electra_german_embedder, SentenceTransformerEmbedder)
+        bi_electra_german_embedder = make_embedder(
+            "svalabs/bi-electra-ms-marco-german-uncased"
+        )
+        assert isinstance(bi_electra_german_embedder, SentenceTransformerEmbedder)
+    else:
+        pytest.skip("sentence-transformers not available, skipping transformer tests")
 
 
 @pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not available")

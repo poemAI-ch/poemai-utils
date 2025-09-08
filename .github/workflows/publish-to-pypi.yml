@@ -33,8 +33,7 @@ jobs:
           # Install the package in development mode with test dependencies
           pip install -e .[testing]
           # Install additional test dependencies that aren't hard requirements
-          pip install boto3 python-dateutil pytest-asyncio boto3 numpy
-
+          pip install boto3 python-dateutil pytest-asyncio boto3 numpy tiktoken
       - name: Run unit tests
         run: |
           pytest tests/unit -v --tb=short

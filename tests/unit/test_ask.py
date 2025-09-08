@@ -65,7 +65,7 @@ async def test_async_ask():
     openai = MagicMock()
     BASE_URL = "https://example.com"
     FULL_BASE_URL = f"{BASE_URL}/v1/chat/completions"
-    ask = Ask(openai=openai, base_url=BASE_URL)
+    ask = Ask(openai=openai, base_url=BASE_URL, openai_api_key="test-key")
     ask.async_openai.httpx = httpx_mock
 
     # Check if the base_url is correctly overridden
