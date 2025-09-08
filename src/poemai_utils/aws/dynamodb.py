@@ -532,14 +532,14 @@ class DynamoDB:
         ):
             yield self.item_to_dict(item)
 
-    def get_item(self, TableName, Key):
+    def get_item(self, TableName, Key, ProjectionExpression=None):
         """A proxy for boto3.dynamodb.table.get_item"""
 
         _logger.debug(f"Getting item Key={Key} from table TableName={TableName}")
-        response = self.dynamodb_client.get_item(
-            TableName=TableName,
-            Key=Key,
-        )
+        args = {"TableName": TableName, "Key": Key}
+        if ProjectionExpression is not None:
+            args["ProjectionExpression"] = ProjectionExpression
+        response = self.dynamodb_client.get_item(**args)
 
         # check response for errors
         if response["ResponseMetadata"]["HTTPStatusCode"] != 200:

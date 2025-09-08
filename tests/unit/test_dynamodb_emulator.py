@@ -576,6 +576,17 @@ def test_get_item():
         "data": {"S": "data1"},
     }
 
+    item_read_back = ddb.get_item(
+        TableName=TEST_TABLE_NAME,
+        Key={"pk": {"S": "pk1"}, "sk": {"S": "sk1"}},
+        ProjectionExpression="pk, data",
+    )["Item"]
+
+    assert item_read_back == {
+        "pk": {"S": "pk1"},
+        "data": {"S": "data1"},
+    }
+
 
 def test_key_schema_pk_sk():
 

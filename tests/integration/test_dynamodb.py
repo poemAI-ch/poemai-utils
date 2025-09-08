@@ -94,6 +94,17 @@ def test_get_item(ddb: DynamoDB):
         "content": {"S": "some content"},
     }
 
+    item_read_back = ddb.get_item(
+        TableName=TEST_TABLE_NAME,
+        Key={"pk": {"S": "TEST#1"}, "sk": {"S": "TEST_SK#1"}},
+        ProjectionExpression="pk, content",
+    )["Item"]
+
+    assert item_read_back == {
+        "pk": {"S": "TEST#1"},
+        "content": {"S": "some content"},
+    }
+
 
 def test_get_paginated_items_special_format(ddb: DynamoDB):
     items_to_store = [

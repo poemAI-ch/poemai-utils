@@ -3,12 +3,14 @@ import json
 import logging
 import re
 import threading
+from curses import raw
 
 from poemai_utils.aws.dynamodb import (
     DynamoDB,
     ItemAlreadyExistsException,
     VersionMismatchException,
 )
+from regex import P
 from sqlitedict import SqliteDict
 
 _logger = logging.getLogger(__name__)
@@ -233,7 +235,7 @@ class DynamoDBEmulator:
             self.data_table[composite_key] = serialized_item
             self._commit()
 
-    def get_item(self, TableName, Key):
+    def get_item(self, TableName, Key, ProjectionExpression=None):
 
         pk_key, sk_key = self._get_key_names(TableName)
 
@@ -246,23 +248,30 @@ class DynamoDBEmulator:
 
         if sk is None:
             _logger.debug(f"Getting item from table {TableName} by pk only: {pk}")
-            retval = {
-                "Item": DynamoDB.ddb_type_serializer.serialize(
-                    self.get_item_by_pk(TableName, pk)
-                )["M"]
-            }
-
-            return retval
+            raw_item = self.get_item_by_pk(TableName, pk)
         else:
             _logger.debug(
                 f"Getting item from table {TableName} by pk and sk: {pk}, {sk}"
             )
-            retval = {
-                "Item": DynamoDB.ddb_type_serializer.serialize(
-                    self.get_item_by_pk_sk(TableName, pk, sk)
-                )["M"]
+            raw_item = self.get_item_by_pk_sk(TableName, pk, sk)
+        if raw_item is None:
+            return None
+
+        if ProjectionExpression is not None and raw_item is not None:
+            projected_item = {
+                k: v
+                for k, v in raw_item.items()
+                if k
+                in [
+                    projection_key.strip()
+                    for projection_key in ProjectionExpression.split(",")
+                ]
             }
-            return retval
+        else:
+            projected_item = raw_item
+
+        retval = {"Item": DynamoDB.ddb_type_serializer.serialize(projected_item)["M"]}
+        return retval
 
     def get_item_by_pk_sk(self, table_name, pk, sk):
         if self.log_access:
