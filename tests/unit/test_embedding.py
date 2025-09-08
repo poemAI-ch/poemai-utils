@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 from poemai_utils.embeddings.embedder_base import EmbedderBase
 from poemai_utils.embeddings.embedder_factory import make_embedder
 from poemai_utils.embeddings.embedding_store import EmbeddingStore
@@ -6,7 +7,13 @@ from poemai_utils.embeddings.openai_embedder import OpenAIEmbedder
 from poemai_utils.embeddings.sentence_transformer_embedder import (
     SentenceTransformerEmbedder,
 )
-from poemai_utils.embeddings.sgpt_embedder import SGPTEmbedder
+
+try:
+    from poemai_utils.embeddings.sgpt_embedder import SGPTEmbedder
+
+    HAS_TORCH = True
+except ImportError:
+    HAS_TORCH = False
 
 
 def test_embedding():
@@ -39,6 +46,7 @@ def test_embedding_factory():
     assert isinstance(bi_electra_german_embedder, SentenceTransformerEmbedder)
 
 
+@pytest.mark.skipif(not HAS_TORCH, reason="PyTorch not available")
 def test_sgpt_embedder():
     sgpt_embedder = SGPTEmbedder()
     assert sgpt_embedder.embedding_dim() == 768
