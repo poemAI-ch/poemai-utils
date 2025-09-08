@@ -30,7 +30,7 @@ def test_embedding():
 
 def test_embedding_factory():
 
-    openai_embedder = make_embedder("text-embedding-ada-002")
+    openai_embedder = make_embedder("text-embedding-ada-002", openai_api_key="test-key")
 
     assert isinstance(openai_embedder, OpenAIEmbedder)
 

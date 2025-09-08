@@ -11,7 +11,7 @@ _logger = logging.getLogger(__name__)
 
 
 def test_count_tokens():
-    ask = Ask()
+    ask = Ask(openai_api_key="test-key")
     assert ask.count_tokens("hello world") == 2
 
 
