@@ -20,7 +20,9 @@ class DynamoDBEmulator:
         sqlite_filename,
         enforce_index_existence=False,
         eventual_consistency_config=None,
+        log_access=False,
     ):
+        self.log_access = log_access
         if sqlite_filename is not None:
             _logger.info(f"Using SQLite data store: {sqlite_filename}")
             self.data_table = SqliteDict(sqlite_filename, tablename="data")
@@ -43,6 +45,7 @@ class DynamoDBEmulator:
             {}
         )  # tracks how many stale reads remain for each key
         self.previous_versions = {}  # stores previous versions of items
+        self.key_schema_by_table = {}
 
     def _get_composite_key(self, table_name, pk, sk):
         return f"{table_name}___##___{pk}___##___{sk}"
@@ -50,6 +53,9 @@ class DynamoDBEmulator:
     def _get_pk_sk_from_composite_key(self, composite_key):
         key_components = composite_key.split("___##___")[1:3]
         return key_components[0], key_components[1]
+
+    def _get_table_name_from_composite_key(self, composite_key):
+        return composite_key.split("___##___")[0]
 
     def _get_index_key(self, table_name, pk):
         return f"{table_name}#{pk}"
@@ -59,16 +65,56 @@ class DynamoDBEmulator:
             self.data_table.commit()
             self.index_table.commit()
 
-    def get_all_items(self):
-        for k, v in self.data_table.items():
-            pk, sk = self._get_pk_sk_from_composite_key(k)
+    def _get_key_names(self, table_name):
+        """Get the primary key and sort key attribute names for a table.
 
-            yield {"pk": pk, "sk": sk, **v}
+        Args:
+            table_name (str): The name of the table
+
+        Returns:
+            tuple: (pk_key, sk_key) where pk_key is the primary key attribute name
+                   and sk_key is the sort key attribute name (or None if no sort key)
+        """
+        pk_key = "pk"
+        sk_key = "sk"
+        if table_name in self.key_schema_by_table:
+            sk_key = None
+            for key_def in self.key_schema_by_table[table_name]:
+                if key_def["KeyType"] == "HASH":
+                    pk_key = key_def["AttributeName"]
+                elif key_def["KeyType"] == "RANGE":
+                    sk_key = key_def["AttributeName"]
+        return pk_key, sk_key
+
+    def add_key_schema(self, table_name, key_schema):
+        """Add key schema for a table. Key schema is a list of dicts with 'AttributeName' and 'KeyType'."""
+        if self.log_access:
+            _logger.info(f"Adding key schema for table {table_name}: {key_schema}")
+        self.key_schema_by_table[table_name] = key_schema
+
+    def get_all_items(self):
+        if self.log_access:
+            _logger.info("Getting all items from all tables")
+        for k, v in self.data_table.items():
+            _logger.info(f"Got item with composite key {k}")
+            pk, sk = self._get_pk_sk_from_composite_key(k)
+            table_name = self._get_table_name_from_composite_key(k)
+
+            pk_key, sk_key = self._get_key_names(table_name)
+
+            retval = {pk_key: pk}
+            if sk_key:
+                retval[sk_key] = sk
+            yield {**retval, **v}
 
     def store_item(self, table_name, item):
+        if self.log_access:
+            _logger.info(f"Storing item in table {table_name}: {item}")
         with self.lock:
-            pk = item["pk"]
-            sk = item.get("sk", "")
+            pk_key, sk_key = self._get_key_names(table_name)
+
+            pk = item[pk_key]
+            sk = item.get(sk_key, "")
 
             composite_key = self._get_composite_key(table_name, pk, sk)
 
@@ -131,6 +177,10 @@ class DynamoDBEmulator:
 
     def store_new_item(self, table_name, item, primary_key_name):
         """Store an item only if it does not already exist."""
+        if self.log_access:
+            _logger.info(
+                f"Storing new item in table {table_name} with primary key {primary_key_name}: {item}"
+            )
         pk = item["pk"]
         sk = item.get("sk", "")
         composite_key = self._get_composite_key(table_name, pk, sk)
@@ -149,6 +199,10 @@ class DynamoDBEmulator:
         expected_version,
         version_attribute_name="version",
     ):
+        if self.log_access:
+            _logger.info(
+                f"Updating item in table {table_name} with pk:{pk}, sk:{sk}, expected_version:{expected_version}, updates:{attribute_updates}"
+            )
         with self.lock:
             composite_key = self._get_composite_key(table_name, pk, sk)
             item_serialized = self.data_table.get(composite_key)
@@ -179,8 +233,43 @@ class DynamoDBEmulator:
             self.data_table[composite_key] = serialized_item
             self._commit()
 
+    def get_item(self, TableName, Key):
+
+        pk_key, sk_key = self._get_key_names(TableName)
+
+        pk = Key[pk_key]["S"]
+
+        if sk_key and sk_key in Key:
+            sk = Key[sk_key]["S"]
+        else:
+            sk = None
+
+        if sk is None:
+            _logger.debug(f"Getting item from table {TableName} by pk only: {pk}")
+            retval = {
+                "Item": DynamoDB.ddb_type_serializer.serialize(
+                    self.get_item_by_pk(TableName, pk)
+                )["M"]
+            }
+
+            return retval
+        else:
+            _logger.debug(
+                f"Getting item from table {TableName} by pk and sk: {pk}, {sk}"
+            )
+            retval = {
+                "Item": DynamoDB.ddb_type_serializer.serialize(
+                    self.get_item_by_pk_sk(TableName, pk, sk)
+                )["M"]
+            }
+            return retval
+
     def get_item_by_pk_sk(self, table_name, pk, sk):
+        if self.log_access:
+            _logger.info(f"Getting item from table {table_name} with pk:{pk}, sk:{sk}")
         composite_key = self._get_composite_key(table_name, pk, sk)
+
+        pk_key, sk_key = self._get_key_names(table_name)
 
         # Check if this read should return stale data due to eventual consistency
         with self.lock:
@@ -197,8 +286,8 @@ class DynamoDBEmulator:
                 if stale_data is not None:
                     retval = DynamoDB.ddb_type_deserializer.deserialize(stale_data)
                     if retval:
-                        retval["pk"] = pk
-                        retval["sk"] = sk
+                        retval[pk_key] = pk
+                        retval[sk_key] = sk
                     return retval
                 else:
                     # No previous version exists, return None to simulate item not found
@@ -212,14 +301,15 @@ class DynamoDBEmulator:
             retval = DynamoDB.ddb_type_deserializer.deserialize(retval_serialized)
 
         if retval:
-            retval["pk"] = pk
-            retval["sk"] = sk
+            retval[pk_key] = pk
+            retval[sk_key] = sk
         return retval
 
     def batch_get_items_by_pk_sk(self, table_name, pk_sk_list):
         _logger.info(
             f"Batch get items by pk_sk list {pk_sk_list} from table {table_name}"
         )
+
         result_list = []
         for key_spec in pk_sk_list:
             pk = key_spec["pk"]["S"]
@@ -237,14 +327,30 @@ class DynamoDBEmulator:
 
     def get_item_by_pk(self, table_name, pk):
         composite_key = self._get_composite_key(table_name, pk, "")
+        pk_key, sk_key = self._get_key_names(table_name)
+
+        # Validate that this table doesn't have a sort key
+        if sk_key is not None:
+            raise ValueError(
+                f"Table {table_name} has a sort key, cannot get item by pk only"
+            )
+
+        if self.log_access:
+            _logger.info(
+                f"Getting item from table {table_name} with pk:{pk}, composite_key:{composite_key}"
+            )
+
         retval_serialized = self.data_table.get(composite_key, None)
+
         if retval_serialized is None:
+            _logger.info(f"retval_serialized is None, returning None")
             retval = None
         else:
             retval = DynamoDB.ddb_type_deserializer.deserialize(retval_serialized)
 
         if retval:
-            retval["pk"] = pk
+            retval[pk_key] = pk
+
         return retval
 
     def get_paginated_items_by_sk(self, table_name, index_name, sk, limit=100):
@@ -257,6 +363,10 @@ class DynamoDBEmulator:
             sk (str): The value of the sk
             limit (int): The number of items to return in each page
         """
+        if self.log_access:
+            _logger.info(
+                f"Getting paginated items by sk:{sk} from table {table_name} using index {index_name} with limit {limit}"
+            )
         for item in self.get_paginated_items(
             table_name=table_name,
             key_condition_expression="sk = :sk",
@@ -269,6 +379,10 @@ class DynamoDBEmulator:
     def get_paginated_items_by_pk(
         self, table_name, pk, limit=None, projection_expression=None
     ):
+        if self.log_access:
+            _logger.info(
+                f"Getting paginated items by pk:{pk} from table {table_name} with limit {limit} and projection_expression {projection_expression}"
+            )
         results = []
         index_key = self._get_index_key(table_name, pk)
         composite_keys = set(self.index_table.get(index_key, []))
@@ -295,6 +409,8 @@ class DynamoDBEmulator:
         return results
 
     def delete_item_by_pk_sk(self, table_name, pk, sk):
+        if self.log_access:
+            _logger.info(f"Deleting item from table {table_name} with pk:{pk}, sk:{sk}")
         composite_key = self._get_composite_key(table_name, pk, sk)
 
         # Delete the item
@@ -323,6 +439,12 @@ class DynamoDBEmulator:
         support any other operations like filter expressions, etc. It also does not
         support any index operations. It is only meant to be used for testing purposes.
         """
+        if self.log_access:
+            _logger.info(
+                f"Querying table {TableName} with KeyConditionExpression: {KeyConditionExpression}, "
+                f"ExpressionAttributeValues: {ExpressionAttributeValues}, "
+                f"ProjectionExpression: {ProjectionExpression}, limit: {limit}"
+            )
 
         # Helper function to evaluate conditions
         def evaluate_condition(item, key, operator, value):
@@ -427,6 +549,10 @@ class DynamoDBEmulator:
         return results
 
     def item_exists(self, table_name, pk, sk):
+        if self.log_access:
+            _logger.info(
+                f"Checking if item exists in table {table_name} with pk:{pk}, sk:{sk}"
+            )
         composite_key = self._get_composite_key(table_name, pk, sk)
         return composite_key in self.data_table
 
@@ -439,6 +565,14 @@ class DynamoDBEmulator:
         limit=100,
         index_name=None,
     ):
+        if self.log_access:
+            _logger.info(
+                f"Getting paginated items from table {table_name} with limit {limit}, "
+                f"key_condition_expression: {key_condition_expression}, "
+                f"expression_attribute_values: {expression_attribute_values}, "
+                f"projection_expression: {projection_expression}, "
+                f"index_name: {index_name}"
+            )
         # Check if index enforcement is enabled and index exists
         if (
             self.enforce_index_existence
@@ -496,6 +630,10 @@ class DynamoDBEmulator:
             sk (str): The starting value of the sk
             limit (int): The number of items to return in each page
         """
+        if self.log_access:
+            _logger.info(
+                f"Getting paginated items starting at pk:{pk}, sk:{sk} from table {table_name} with limit {limit}"
+            )
         key_condition_expression = "pk = :pk AND sk >= :sk"
         expression_attribute_values = {
             ":pk": {"S": pk},

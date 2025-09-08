@@ -560,4 +560,68 @@ def test_index_projection_with_binary_data():
     assert item_dict["binary_data"] == binary_data
 
 
-# ...existing tests...
+def test_get_item():
+
+    ddb = DynamoDBEmulator(None)
+    TEST_TABLE_NAME = "test_table"
+
+    ddb.store_item(TEST_TABLE_NAME, {"pk": "pk1", "sk": "sk1", "data": "data1"})
+
+    item_read_back = ddb.get_item(
+        TableName=TEST_TABLE_NAME, Key={"pk": {"S": "pk1"}, "sk": {"S": "sk1"}}
+    )["Item"]
+    assert item_read_back == {
+        "pk": {"S": "pk1"},
+        "sk": {"S": "sk1"},
+        "data": {"S": "data1"},
+    }
+
+
+def test_key_schema_pk_sk():
+
+    ddb = DynamoDBEmulator(None, log_access=True)
+
+    ddb.add_key_schema(
+        "test_table",
+        [
+            {"AttributeName": "trx_id", "KeyType": "HASH"},
+            {"AttributeName": "created_at", "KeyType": "RANGE"},
+        ],
+    )
+
+    ddb.store_item(
+        "test_table",
+        {"trx_id": "trx1", "created_at": "2024-06-01T12:00:00Z", "data": "data1"},
+    )
+
+    item = ddb.get_item_by_pk_sk("test_table", "trx1", "2024-06-01T12:00:00Z")
+
+    assert item == {
+        "trx_id": "trx1",
+        "created_at": "2024-06-01T12:00:00Z",
+        "data": "data1",
+    }
+
+
+def test_key_schema_pk_only():
+
+    ddb = DynamoDBEmulator(None, log_access=True)
+
+    ddb.add_key_schema(
+        "test_table",
+        [
+            {"AttributeName": "trx_id", "KeyType": "HASH"},
+        ],
+    )
+
+    ddb.store_item(
+        "test_table",
+        {"trx_id": "trx1", "data": "data1"},
+    )
+
+    item = ddb.get_item_by_pk("test_table", "trx1")
+
+    assert item == {
+        "trx_id": "trx1",
+        "data": "data1",
+    }
