@@ -106,6 +106,255 @@ def test_get_item(ddb: DynamoDB):
     }
 
 
+def test_get_item_with_expression_attribute_names(ddb: DynamoDB):
+    """Test ExpressionAttributeNames support in get_item method."""
+    # Store an item with fields that could be reserved keywords
+    test_item = {
+        "pk": "attr_test",
+        "sk": "test_sk",
+        "name": "test_name",
+        "status": "active",
+        "normal_field": "value",
+    }
+    ddb.store_item(TEST_TABLE_NAME, test_item)
+
+    try:
+        # Test 1: Use ExpressionAttributeNames to access reserved keywords
+        result = ddb.get_item(
+            TableName=TEST_TABLE_NAME,
+            Key={"pk": {"S": "attr_test"}, "sk": {"S": "test_sk"}},
+            ProjectionExpression="pk, #n, #s",
+            ExpressionAttributeNames={"#n": "name", "#s": "status"},
+        )
+
+        # Verify the result contains the projected fields
+        assert "Item" in result
+        item_dict = DynamoDB.item_to_dict(result["Item"])
+
+        # Should only contain the projected fields
+        expected_keys = {"pk", "name", "status"}
+        actual_keys = set(item_dict.keys())
+        assert (
+            actual_keys == expected_keys
+        ), f"Expected keys {expected_keys}, got {actual_keys}"
+
+        # Verify the values
+        assert item_dict["pk"] == "attr_test"
+        assert item_dict["name"] == "test_name"
+        assert item_dict["status"] == "active"
+        assert (
+            "normal_field" not in item_dict
+        )  # Should not be included since not in projection
+
+        print("✅ Test 1 passed: ExpressionAttributeNames works with get_item")
+
+        # Test 2: Mix of aliased and non-aliased attributes
+        result = ddb.get_item(
+            TableName=TEST_TABLE_NAME,
+            Key={"pk": {"S": "attr_test"}, "sk": {"S": "test_sk"}},
+            ProjectionExpression="pk, #n, normal_field",
+            ExpressionAttributeNames={"#n": "name"},
+        )
+
+        assert "Item" in result
+        item_dict = DynamoDB.item_to_dict(result["Item"])
+
+        expected_keys = {"pk", "name", "normal_field"}
+        actual_keys = set(item_dict.keys())
+        assert actual_keys == expected_keys
+
+        assert item_dict["pk"] == "attr_test"
+        assert item_dict["name"] == "test_name"
+        assert item_dict["normal_field"] == "value"
+        assert "status" not in item_dict
+
+        print("✅ Test 2 passed: Mixed aliased and non-aliased attributes work")
+
+        # Test 3: Get full item (no ProjectionExpression) should work normally
+        result = ddb.get_item(
+            TableName=TEST_TABLE_NAME,
+            Key={"pk": {"S": "attr_test"}, "sk": {"S": "test_sk"}},
+        )
+
+        assert "Item" in result
+        item_dict = DynamoDB.item_to_dict(result["Item"])
+        assert item_dict == test_item  # Should return the full item
+
+        print(
+            "✅ Test 3 passed: Full item retrieval without ProjectionExpression works"
+        )
+
+    finally:
+        # Clean up the test item
+        ddb.delete_item_by_pk_sk(TEST_TABLE_NAME, "attr_test", "test_sk")
+
+
+def test_query_with_expression_attribute_names(ddb: DynamoDB):
+    """Test ExpressionAttributeNames support in query method."""
+    # Store test items with fields that could be reserved keywords
+    test_items = [
+        {
+            "pk": "query_test",
+            "sk": "item1",
+            "name": "first_item",
+            "status": "active",
+            "count": 1,
+        },
+        {
+            "pk": "query_test",
+            "sk": "item2",
+            "name": "second_item",
+            "status": "inactive",
+            "count": 2,
+        },
+    ]
+
+    for item in test_items:
+        ddb.store_item(TEST_TABLE_NAME, item)
+
+    try:
+        # Test query with ExpressionAttributeNames
+        result = ddb.query(
+            TableName=TEST_TABLE_NAME,
+            KeyConditionExpression="pk = :pk",
+            ExpressionAttributeValues={":pk": {"S": "query_test"}},
+            ProjectionExpression="pk, sk, #n, #s",
+            ExpressionAttributeNames={"#n": "name", "#s": "status"},
+        )
+
+        # Verify the result
+        assert "Items" in result
+        assert len(result["Items"]) == 2
+
+        for item in result["Items"]:
+            item_dict = DynamoDB.item_to_dict(item)
+            expected_keys = {"pk", "sk", "name", "status"}
+            actual_keys = set(item_dict.keys())
+            assert (
+                actual_keys == expected_keys
+            ), f"Expected keys {expected_keys}, got {actual_keys}"
+
+            assert item_dict["pk"] == "query_test"
+            assert item_dict["sk"] in ["item1", "item2"]
+            assert item_dict["name"] in ["first_item", "second_item"]
+            assert item_dict["status"] in ["active", "inactive"]
+            assert (
+                "count" not in item_dict
+            )  # Should not be included since not in projection
+
+        print("✅ Query with ExpressionAttributeNames test passed")
+
+    finally:
+        # Clean up the test items
+        for item in test_items:
+            ddb.delete_item_by_pk_sk(TEST_TABLE_NAME, item["pk"], item["sk"])
+
+
+def test_get_paginated_items_with_expression_attribute_names(ddb: DynamoDB):
+    """Test ExpressionAttributeNames support in get_paginated_items method."""
+    # Store test items with fields that could be reserved keywords
+    test_items = [
+        {
+            "pk": "paginated_test",
+            "sk": "item1",
+            "name": "first_item",
+            "status": "active",
+        },
+        {
+            "pk": "paginated_test",
+            "sk": "item2",
+            "name": "second_item",
+            "status": "inactive",
+        },
+    ]
+
+    for item in test_items:
+        ddb.store_item(TEST_TABLE_NAME, item)
+
+    try:
+        # Test get_paginated_items with ExpressionAttributeNames
+        paginated_items = ddb.get_paginated_items(
+            table_name=TEST_TABLE_NAME,
+            key_condition_expression="pk = :pk",
+            expression_attribute_values={":pk": {"S": "paginated_test"}},
+            projection_expression="pk, sk, #n, #s",
+            expression_attribute_names={"#n": "name", "#s": "status"},
+        )
+
+        items_list = list(paginated_items)
+        assert len(items_list) == 2
+
+        for item in items_list:
+            item_dict = DynamoDB.item_to_dict(item)
+            expected_keys = {"pk", "sk", "name", "status"}
+            actual_keys = set(item_dict.keys())
+            assert (
+                actual_keys == expected_keys
+            ), f"Expected keys {expected_keys}, got {actual_keys}"
+
+            assert item_dict["pk"] == "paginated_test"
+            assert item_dict["sk"] in ["item1", "item2"]
+            assert item_dict["name"] in ["first_item", "second_item"]
+            assert item_dict["status"] in ["active", "inactive"]
+
+        print("✅ get_paginated_items with ExpressionAttributeNames test passed")
+
+    finally:
+        # Clean up the test items
+        for item in test_items:
+            ddb.delete_item_by_pk_sk(TEST_TABLE_NAME, item["pk"], item["sk"])
+
+
+def test_scan_for_items_with_expression_attribute_names(ddb: DynamoDB):
+    """Test ExpressionAttributeNames support in scan_for_items method."""
+    # Store test items with fields that could be reserved keywords
+    test_items = [
+        {"pk": "scan_test1", "sk": "item1", "name": "scan_item", "status": "active"},
+        {"pk": "scan_test2", "sk": "item2", "name": "scan_item", "status": "inactive"},
+    ]
+
+    for item in test_items:
+        ddb.store_item(TEST_TABLE_NAME, item)
+
+    try:
+        # Test scan_for_items with ExpressionAttributeNames
+        scanned_items = ddb.scan_for_items(
+            table_name=TEST_TABLE_NAME,
+            filter_expression="contains(#n, :name_value)",
+            expression_attribute_values={":name_value": {"S": "scan_item"}},
+            projection_expression="pk, sk, #n, #s",
+            expression_attribute_names={"#n": "name", "#s": "status"},
+        )
+
+        items_list = list(scanned_items)
+        # Should find both items since both have name containing "scan_item"
+        assert len(items_list) >= 2  # Could be more if other tests left items
+
+        scan_test_items = [
+            item for item in items_list if item["pk"].startswith("scan_test")
+        ]
+        assert len(scan_test_items) == 2
+
+        for item in scan_test_items:
+            expected_keys = {"pk", "sk", "name", "status"}
+            actual_keys = set(item.keys())
+            assert (
+                actual_keys == expected_keys
+            ), f"Expected keys {expected_keys}, got {actual_keys}"
+
+            assert item["pk"] in ["scan_test1", "scan_test2"]
+            assert item["sk"] in ["item1", "item2"]
+            assert item["name"] == "scan_item"
+            assert item["status"] in ["active", "inactive"]
+
+        print("✅ scan_for_items with ExpressionAttributeNames test passed")
+
+    finally:
+        # Clean up the test items
+        for item in test_items:
+            ddb.delete_item_by_pk_sk(TEST_TABLE_NAME, item["pk"], item["sk"])
+
+
 def test_get_paginated_items_special_format(ddb: DynamoDB):
     items_to_store = [
         {"pk": "pk1", "sk": "sk1", "data": "data1"},

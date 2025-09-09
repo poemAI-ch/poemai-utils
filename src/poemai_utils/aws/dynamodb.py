@@ -382,6 +382,7 @@ class DynamoDB:
         filter_expression,
         expression_attribute_values,
         projection_expression=None,
+        expression_attribute_names=None,
     ):
         paginator = self.dynamodb_client.get_paginator("scan")
         args = {"TableName": table_name}
@@ -391,6 +392,8 @@ class DynamoDB:
             args["ExpressionAttributeValues"] = expression_attribute_values
         if projection_expression is not None:
             args["ProjectionExpression"] = projection_expression
+        if expression_attribute_names is not None:
+            args["ExpressionAttributeNames"] = expression_attribute_names
         page_iterator = paginator.paginate(**args)
 
         for page in page_iterator:
@@ -451,6 +454,7 @@ class DynamoDB:
         projection_expression=None,
         limit=100,
         index_name=None,
+        expression_attribute_names=None,
     ):
         """A proxy for boto3.dynamodb.table.query"""
 
@@ -466,6 +470,8 @@ class DynamoDB:
             kwargs["ProjectionExpression"] = projection_expression
         if index_name is not None:
             kwargs["IndexName"] = index_name
+        if expression_attribute_names is not None:
+            kwargs["ExpressionAttributeNames"] = expression_attribute_names
 
         page_iterator = paginator.paginate(**kwargs)
 
@@ -532,13 +538,17 @@ class DynamoDB:
         ):
             yield self.item_to_dict(item)
 
-    def get_item(self, TableName, Key, ProjectionExpression=None):
+    def get_item(
+        self, TableName, Key, ProjectionExpression=None, ExpressionAttributeNames=None
+    ):
         """A proxy for boto3.dynamodb.table.get_item"""
 
         _logger.debug(f"Getting item Key={Key} from table TableName={TableName}")
         args = {"TableName": TableName, "Key": Key}
         if ProjectionExpression is not None:
             args["ProjectionExpression"] = ProjectionExpression
+        if ExpressionAttributeNames is not None:
+            args["ExpressionAttributeNames"] = ExpressionAttributeNames
         response = self.dynamodb_client.get_item(**args)
 
         # check response for errors
@@ -555,6 +565,7 @@ class DynamoDB:
         KeyConditionExpression,
         ExpressionAttributeValues,
         ProjectionExpression=None,
+        ExpressionAttributeNames=None,
     ):
         """A proxy for boto3.dynamodb.table.query with pagination handling"""
 
@@ -565,6 +576,8 @@ class DynamoDB:
         }
         if ProjectionExpression is not None:
             args["ProjectionExpression"] = ProjectionExpression
+        if ExpressionAttributeNames is not None:
+            args["ExpressionAttributeNames"] = ExpressionAttributeNames
 
         all_items = []
         response = self.dynamodb_client.query(**args)
