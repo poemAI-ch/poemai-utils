@@ -11,7 +11,9 @@ class TestDynamoDBEmulatorEventualConsistency:
 
     def test_eventual_consistency_disabled_by_default(self):
         """Test that eventual consistency simulation is disabled by default."""
-        emulator = DynamoDBEmulator(sqlite_filename=None)
+        emulator = DynamoDBEmulator(
+            sqlite_filename=None, allowed_reserved_keywords=["data"]
+        )
 
         # Store an initial item
         emulator.store_item(
@@ -37,7 +39,9 @@ class TestDynamoDBEmulatorEventualConsistency:
             ],
         }
         emulator = DynamoDBEmulator(
-            sqlite_filename=None, eventual_consistency_config=config
+            sqlite_filename=None,
+            eventual_consistency_config=config,
+            allowed_reserved_keywords=["data"],
         )
 
         # Store an initial item
@@ -70,7 +74,9 @@ class TestDynamoDBEmulatorEventualConsistency:
             "patterns": [{"table_name": "test_table", "pk": "new_item"}],
         }
         emulator = DynamoDBEmulator(
-            sqlite_filename=None, eventual_consistency_config=config
+            sqlite_filename=None,
+            eventual_consistency_config=config,
+            allowed_reserved_keywords=["data"],
         )
 
         # Create a new item - this should trigger eventual consistency simulation
@@ -96,7 +102,9 @@ class TestDynamoDBEmulatorEventualConsistency:
             ],
         }
         emulator = DynamoDBEmulator(
-            sqlite_filename=None, eventual_consistency_config=config
+            sqlite_filename=None,
+            eventual_consistency_config=config,
+            allowed_reserved_keywords=["data"],
         )
 
         # Store items with different patterns
@@ -141,7 +149,9 @@ class TestDynamoDBEmulatorEventualConsistency:
             "patterns": [{"table_name": "test_table", "pk": "test_pk"}],
         }
         emulator = DynamoDBEmulator(
-            sqlite_filename=None, eventual_consistency_config=config
+            sqlite_filename=None,
+            eventual_consistency_config=config,
+            allowed_reserved_keywords=["data"],
         )
 
         # Store and update an item
@@ -169,7 +179,9 @@ class TestDynamoDBEmulatorEventualConsistency:
             "patterns": [{"table_name": "test_table", "pk": "affected_item"}],
         }
         emulator = DynamoDBEmulator(
-            sqlite_filename=None, eventual_consistency_config=config
+            sqlite_filename=None,
+            eventual_consistency_config=config,
+            allowed_reserved_keywords=["data"],
         )
 
         # Store and update two items

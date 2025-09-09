@@ -11,7 +11,7 @@ _logger = logging.getLogger(__name__)
 
 def test_db(tmp_path):
     db_file = tmp_path / "test.db"
-    db = DynamoDBEmulator(db_file)
+    db = DynamoDBEmulator(db_file, allowed_reserved_keywords=["data"])
     TABLE_NAME = "test_table"
 
     db.store_item(TABLE_NAME, {"pk": "pk1", "sk": "sk1", "data": "data1"})
@@ -118,7 +118,7 @@ def test_db(tmp_path):
 def test_get_paginated_items_starting_at_pk_sk(tmp_path):
 
     db_file = tmp_path / "test.db"
-    ddb = DynamoDBEmulator(db_file)
+    ddb = DynamoDBEmulator(db_file, allowed_reserved_keywords=["data"])
     TEST_TABLE_NAME = "test_table"
 
     num_pks = 10
@@ -152,7 +152,7 @@ def test_get_paginated_items_starting_at_pk_sk(tmp_path):
 def test_paginated_items_starting_at_pk_sk_sorting(tmp_path):
 
     db_file = tmp_path / "test.db"
-    ddb = DynamoDBEmulator(db_file)
+    ddb = DynamoDBEmulator(db_file, allowed_reserved_keywords=["data"])
     TEST_TABLE_NAME = "test_table"
 
     nun_pks = 5
@@ -199,7 +199,7 @@ def test_paginated_items_starting_at_pk_sk_sorting(tmp_path):
 
 def test_batch_get_items_by_pk_sk():
 
-    ddb = DynamoDBEmulator(None)
+    ddb = DynamoDBEmulator(None, allowed_reserved_keywords=["data"])
     TEST_TABLE_NAME = "test_table"
 
     ddb.store_item(TEST_TABLE_NAME, {"pk": "pk1", "sk": "sk1", "data": "data1"})
@@ -226,7 +226,7 @@ def test_batch_get_items_by_pk_sk():
 
 def test_binary_item():
 
-    ddb = DynamoDBEmulator(None)
+    ddb = DynamoDBEmulator(None, allowed_reserved_keywords=["data"])
     TEST_TABLE_NAME = "test_table"
 
     binary_data = b"binary_data"
@@ -255,7 +255,11 @@ def test_index_projection_enforcement():
     """Test that index projection is properly enforced when enabled."""
 
     # Test with enforcement enabled
-    ddb = DynamoDBEmulator(None, enforce_index_existence=True)
+    ddb = DynamoDBEmulator(
+        None,
+        enforce_index_existence=True,
+        allowed_reserved_keywords=["name", "status", "day"],
+    )
     TEST_TABLE_NAME = "test_table"
 
     # Add a KEYS_ONLY index
@@ -562,7 +566,7 @@ def test_index_projection_with_binary_data():
 
 def test_get_item():
 
-    ddb = DynamoDBEmulator(None)
+    ddb = DynamoDBEmulator(None, allowed_reserved_keywords=["data"])
     TEST_TABLE_NAME = "test_table"
 
     ddb.store_item(TEST_TABLE_NAME, {"pk": "pk1", "sk": "sk1", "data": "data1"})
@@ -579,18 +583,18 @@ def test_get_item():
     item_read_back = ddb.get_item(
         TableName=TEST_TABLE_NAME,
         Key={"pk": {"S": "pk1"}, "sk": {"S": "sk1"}},
-        ProjectionExpression="pk, data",
+        ProjectionExpression="pk, sk",
     )["Item"]
 
     assert item_read_back == {
         "pk": {"S": "pk1"},
-        "data": {"S": "data1"},
+        "sk": {"S": "sk1"},
     }
 
 
 def test_key_schema_pk_sk():
 
-    ddb = DynamoDBEmulator(None, log_access=True)
+    ddb = DynamoDBEmulator(None, log_access=True, allowed_reserved_keywords=["data"])
 
     ddb.add_key_schema(
         "test_table",
@@ -616,7 +620,7 @@ def test_key_schema_pk_sk():
 
 def test_key_schema_pk_only():
 
-    ddb = DynamoDBEmulator(None, log_access=True)
+    ddb = DynamoDBEmulator(None, log_access=True, allowed_reserved_keywords=["data"])
 
     ddb.add_key_schema(
         "test_table",
@@ -636,3 +640,493 @@ def test_key_schema_pk_only():
         "trx_id": "trx1",
         "data": "data1",
     }
+
+
+def test_reserved_keyword_validation_store_item():
+    """Test that reserved keywords are rejected when storing items."""
+    ddb = DynamoDBEmulator(None)
+    TABLE_NAME = "test_table"
+
+    # Test that 'status' is rejected
+    with pytest.raises(Exception) as exc_info:
+        ddb.store_item(TABLE_NAME, {"pk": "pk1", "sk": "sk1", "status": "active"})
+    assert "reserved keyword(s): ['status']" in str(exc_info.value)
+    assert "expression attribute names" in str(exc_info.value)
+
+    # Test that other common reserved keywords are rejected
+    reserved_keywords_to_test = [
+        "name",
+        "data",
+        "count",
+        "size",
+        "type",
+        "key",
+        "value",
+        "index",
+    ]
+
+    for keyword in reserved_keywords_to_test:
+        with pytest.raises(Exception) as exc_info:
+            ddb.store_item(
+                TABLE_NAME, {"pk": "pk1", "sk": "sk1", keyword: "test_value"}
+            )
+        assert f"reserved keyword(s): ['{keyword}']" in str(exc_info.value)
+
+    # Test that case-insensitive matching works
+    with pytest.raises(Exception) as exc_info:
+        ddb.store_item(TABLE_NAME, {"pk": "pk1", "sk": "sk1", "STATUS": "active"})
+    assert "reserved keyword(s): ['STATUS']" in str(exc_info.value)
+
+    with pytest.raises(Exception) as exc_info:
+        ddb.store_item(TABLE_NAME, {"pk": "pk1", "sk": "sk1", "Status": "active"})
+    assert "reserved keyword(s): ['Status']" in str(exc_info.value)
+
+    # Test that multiple reserved keywords are detected
+    with pytest.raises(Exception) as exc_info:
+        ddb.store_item(
+            TABLE_NAME,
+            {"pk": "pk1", "sk": "sk1", "status": "active", "name": "test", "count": 5},
+        )
+    assert "reserved keyword(s):" in str(exc_info.value)
+    # Should contain all three keywords
+    error_message = str(exc_info.value)
+    assert "status" in error_message
+    assert "name" in error_message
+    assert "count" in error_message
+
+    # Test that non-reserved keywords work fine
+    ddb.store_item(
+        TABLE_NAME, {"pk": "pk1", "sk": "sk1", "my_data": "test", "field": "value"}
+    )
+    item = ddb.get_item_by_pk_sk(TABLE_NAME, "pk1", "sk1")
+    assert item["my_data"] == "test"
+    assert item["field"] == "value"
+
+
+def test_reserved_keyword_validation_update_item():
+    """Test that reserved keywords are rejected when updating items."""
+    ddb = DynamoDBEmulator(None)
+    TABLE_NAME = "test_table"
+
+    # First store a valid item
+    ddb.store_item(
+        TABLE_NAME, {"pk": "pk1", "sk": "sk1", "my_data": "test", "version": 0}
+    )
+
+    # Test that 'status' is rejected in updates
+    with pytest.raises(Exception) as exc_info:
+        ddb.update_versioned_item_by_pk_sk(
+            TABLE_NAME, "pk1", "sk1", {"status": "active"}, 0
+        )
+    assert "reserved keyword(s): ['status']" in str(exc_info.value)
+    assert "expression attribute names" in str(exc_info.value)
+
+    # Test other reserved keywords in updates
+    reserved_keywords_to_test = ["name", "data", "count", "size"]
+
+    for keyword in reserved_keywords_to_test:
+        with pytest.raises(Exception) as exc_info:
+            ddb.update_versioned_item_by_pk_sk(
+                TABLE_NAME, "pk1", "sk1", {keyword: "test_value"}, 0
+            )
+        assert f"reserved keyword(s): ['{keyword}']" in str(exc_info.value)
+
+    # Test that valid updates still work
+    ddb.update_versioned_item_by_pk_sk(
+        TABLE_NAME, "pk1", "sk1", {"my_field": "updated_value"}, 0
+    )
+    item = ddb.get_item_by_pk_sk(TABLE_NAME, "pk1", "sk1")
+    assert item["my_field"] == "updated_value"
+    assert item["version"] == 1
+
+
+def test_reserved_keyword_validation_projection_expression():
+    """Test that reserved keywords are rejected in ProjectionExpression."""
+    ddb = DynamoDBEmulator(None)
+    TABLE_NAME = "test_table"
+
+    # Store a valid item
+    ddb.store_item(
+        TABLE_NAME, {"pk": "pk1", "sk": "sk1", "my_data": "test", "field": "value"}
+    )
+
+    # Test get_item with reserved keyword in ProjectionExpression
+    with pytest.raises(Exception) as exc_info:
+        ddb.get_item(
+            TableName=TABLE_NAME,
+            Key={"pk": {"S": "pk1"}, "sk": {"S": "sk1"}},
+            ProjectionExpression="status,my_data",
+        )
+    assert "reserved keyword(s): ['status']" in str(exc_info.value)
+    assert "expression attribute names" in str(exc_info.value)
+
+    # Test multiple reserved keywords in ProjectionExpression
+    with pytest.raises(Exception) as exc_info:
+        ddb.get_item(
+            TableName=TABLE_NAME,
+            Key={"pk": {"S": "pk1"}, "sk": {"S": "sk1"}},
+            ProjectionExpression="status,name,count,my_data",
+        )
+    error_message = str(exc_info.value)
+    assert "reserved keyword(s):" in error_message
+    assert "status" in error_message
+    assert "name" in error_message
+    assert "count" in error_message
+
+    # Test that valid ProjectionExpression works
+    result = ddb.get_item(
+        TableName=TABLE_NAME,
+        Key={"pk": {"S": "pk1"}, "sk": {"S": "sk1"}},
+        ProjectionExpression="my_data,field",
+    )
+    assert "Item" in result
+    # The result should only contain the projected fields plus pk/sk
+    item_data = result["Item"]
+    assert "my_data" in item_data
+    assert "field" in item_data
+
+
+def test_reserved_keyword_validation_query_projection():
+    """Test that reserved keywords are rejected in query ProjectionExpression."""
+    ddb = DynamoDBEmulator(None)
+    TABLE_NAME = "test_table"
+
+    # Store test items
+    ddb.store_item(TABLE_NAME, {"pk": "pk1", "sk": "sk1", "my_data": "test1"})
+    ddb.store_item(TABLE_NAME, {"pk": "pk1", "sk": "sk2", "my_data": "test2"})
+
+    # Test query with reserved keyword in ProjectionExpression
+    with pytest.raises(Exception) as exc_info:
+        ddb.query(
+            TableName=TABLE_NAME,
+            KeyConditionExpression="pk = :pk",
+            ExpressionAttributeValues={":pk": {"S": "pk1"}},
+            ProjectionExpression="status,my_data",
+        )
+    assert "reserved keyword(s): ['status']" in str(exc_info.value)
+    assert "expression attribute names" in str(exc_info.value)
+
+    # Test that valid query ProjectionExpression works
+    result = ddb.query(
+        TableName=TABLE_NAME,
+        KeyConditionExpression="pk = :pk",
+        ExpressionAttributeValues={":pk": {"S": "pk1"}},
+        ProjectionExpression="my_data",
+    )
+    assert "Items" in result
+    assert len(result["Items"]) == 2
+
+
+def test_reserved_keyword_validation_comprehensive():
+    """Test a comprehensive set of DynamoDB reserved keywords."""
+    ddb = DynamoDBEmulator(None)
+    TABLE_NAME = "test_table"
+
+    # Test a selection of important reserved keywords that are commonly problematic
+    # Only include keywords that are actually in the DynamoDB reserved keywords list
+    important_reserved_keywords = [
+        "status",
+        "name",
+        "data",
+        "count",
+        "size",
+        "type",
+        "key",
+        "value",
+        "index",
+        "table",
+        "column",
+        "primary",
+        "foreign",
+        "unique",
+        "order",
+        "group",
+        "where",
+        "select",
+        "from",
+        "insert",
+        "update",
+        "delete",
+        "create",
+        "drop",
+        "alter",
+        "user",
+        "role",
+        "grant",
+        "read",
+        "write",
+        "execute",
+        "time",
+        "date",
+        "year",
+        "month",
+        "day",
+        "hour",
+        "minute",
+        "second",
+        "timestamp",
+        "zone",
+        "path",
+        "file",
+        "system",
+        "public",
+        "private",
+        "session",
+        "connection",
+        # Removed "directory" as it's not actually a DynamoDB reserved keyword
+    ]
+
+    for keyword in important_reserved_keywords:
+        # Test in store_item
+        with pytest.raises(Exception) as exc_info:
+            ddb.store_item(TABLE_NAME, {"pk": "pk1", "sk": "sk1", keyword: "test"})
+        assert f"reserved keyword(s): ['{keyword}']" in str(exc_info.value)
+
+    # Test that legitimate field names work
+    legitimate_fields = [
+        "user_id",
+        "user_name",
+        "item_status",
+        "data_field",
+        "count_value",
+        "custom_type",
+        "my_index",
+        "table_name",
+        "created_time",
+        "updated_date",
+    ]
+
+    for field in legitimate_fields:
+        # These should not raise exceptions
+        ddb.store_item(
+            TABLE_NAME, {"pk": f"pk_{field}", "sk": "sk1", field: "test_value"}
+        )
+        item = ddb.get_item_by_pk_sk(TABLE_NAME, f"pk_{field}", "sk1")
+        assert item[field] == "test_value"
+
+    # Test that reserved keywords still work when not explicitly allowed
+    # This test is separate from the main test to show that validation still happens
+    # We'll use a fresh DynamoDBEmulator without allowed keywords
+    strict_ddb = DynamoDBEmulator(None)
+    with pytest.raises(Exception) as exc_info:
+        strict_ddb.store_item(TABLE_NAME, {"pk": "pk1", "sk": "sk1", "status": "test"})
+    assert "reserved keyword(s): ['status']" in str(exc_info.value)
+
+
+def test_validate_attribute_names_function():
+    """Test the validate_attribute_names function directly."""
+    from poemai_utils.aws.dynamodb_emulator import validate_attribute_names
+
+    # Test with dictionary
+    with pytest.raises(Exception) as exc_info:
+        validate_attribute_names({"status": "active", "name": "test"}, "test context")
+    assert "reserved keyword(s):" in str(exc_info.value)
+    assert "status" in str(exc_info.value)
+    assert "name" in str(exc_info.value)
+    assert "test context" in str(exc_info.value)
+
+    # Test with list
+    with pytest.raises(Exception) as exc_info:
+        validate_attribute_names(["status", "name", "count"], "test context")
+    error_message = str(exc_info.value)
+    assert "reserved keyword(s):" in error_message
+    assert "status" in error_message
+    assert "name" in error_message
+    assert "count" in error_message
+
+    # Test with single string
+    with pytest.raises(Exception) as exc_info:
+        validate_attribute_names("status", "test context")
+    assert "reserved keyword(s): ['status']" in str(exc_info.value)
+
+    # Test with valid data
+    validate_attribute_names(
+        {"my_field": "value", "another_field": "test"}, "test context"
+    )  # Should not raise
+    validate_attribute_names(
+        ["my_field", "another_field"], "test context"
+    )  # Should not raise
+    validate_attribute_names("my_field", "test context")  # Should not raise
+
+    # Test with allowed keywords
+    validate_attribute_names(
+        {"status": "active", "my_field": "test"},
+        "test context",
+        allowed_keywords=["status"],
+    )  # Should not raise
+    validate_attribute_names(
+        ["status", "my_field"], "test context", allowed_keywords=["status"]
+    )  # Should not raise
+    validate_attribute_names(
+        "status", "test context", allowed_keywords=["status"]
+    )  # Should not raise
+
+    # Test that non-allowed keywords still raise
+    with pytest.raises(Exception) as exc_info:
+        validate_attribute_names(
+            {"status": "active", "name": "test"},
+            "test context",
+            allowed_keywords=["status"],
+        )
+    assert "reserved keyword(s): ['name']" in str(exc_info.value)
+
+
+def test_get_item_with_expression_attribute_names():
+    """Test get_item with ExpressionAttributeNames support for reserved keywords."""
+    ddb = DynamoDBEmulator(None, allowed_reserved_keywords=["status", "size", "type"])
+    TABLE_NAME = "test_table"
+
+    # Store a test item with reserved keywords
+    test_item = {
+        "pk": "test_pk",
+        "sk": "test_sk",
+        "status": "active",
+        "size": 100,
+        "type": "document",
+        "normal_field": "value",
+    }
+    ddb.store_item(TABLE_NAME, test_item)
+
+    # Test 1: ProjectionExpression without ExpressionAttributeNames should fail for reserved keywords
+    with pytest.raises(Exception) as exc_info:
+        ddb.get_item(
+            TableName=TABLE_NAME,
+            Key={"pk": {"S": "test_pk"}, "sk": {"S": "test_sk"}},
+            ProjectionExpression="pk, sk, status, normal_field",
+        )
+    assert "reserved keyword(s): ['status']" in str(exc_info.value)
+
+    # Test 2: ProjectionExpression with ExpressionAttributeNames should work
+    result = ddb.get_item(
+        TableName=TABLE_NAME,
+        Key={"pk": {"S": "test_pk"}, "sk": {"S": "test_sk"}},
+        ProjectionExpression="pk, sk, #status, normal_field",
+        ExpressionAttributeNames={"#status": "status"},
+    )
+
+    # Verify the result contains the projected fields
+    assert result is not None
+    assert "Item" in result
+    item = DynamoDB.item_to_dict(result["Item"])
+    assert item["pk"] == "test_pk"
+    assert item["sk"] == "test_sk"
+    assert item["status"] == "active"
+    assert item["normal_field"] == "value"
+    assert "size" not in item  # Should not be included since not in projection
+    assert "type" not in item  # Should not be included since not in projection
+
+    # Test 3: Multiple reserved keywords in ExpressionAttributeNames
+    result = ddb.get_item(
+        TableName=TABLE_NAME,
+        Key={"pk": {"S": "test_pk"}, "sk": {"S": "test_sk"}},
+        ProjectionExpression="pk, #status, #size, #type",
+        ExpressionAttributeNames={
+            "#status": "status",
+            "#size": "size",
+            "#type": "type",
+        },
+    )
+
+    assert result is not None
+    item = DynamoDB.item_to_dict(result["Item"])
+    assert item["pk"] == "test_pk"
+    assert item["status"] == "active"
+    assert item["size"] == 100
+    assert item["type"] == "document"
+    assert "sk" not in item  # Should not be included since not in projection
+    assert "normal_field" not in item  # Should not be included since not in projection
+
+    # Test 4: Mix of aliased and non-aliased attributes
+    result = ddb.get_item(
+        TableName=TABLE_NAME,
+        Key={"pk": {"S": "test_pk"}, "sk": {"S": "test_sk"}},
+        ProjectionExpression="pk, #status, normal_field",
+        ExpressionAttributeNames={"#status": "status"},
+    )
+
+    assert result is not None
+    item = DynamoDB.item_to_dict(result["Item"])
+    assert item["pk"] == "test_pk"
+    assert item["status"] == "active"
+    assert item["normal_field"] == "value"
+    assert len(item) == 3  # Only the projected fields
+
+    # Test 5: Missing ExpressionAttributeName should raise error
+    with pytest.raises(Exception) as exc_info:
+        ddb.get_item(
+            TableName=TABLE_NAME,
+            Key={"pk": {"S": "test_pk"}, "sk": {"S": "test_sk"}},
+            ProjectionExpression="pk, #missing_alias",
+            ExpressionAttributeNames={
+                "#status": "status"
+            },  # #missing_alias not defined
+        )
+    assert "ExpressionAttributeName '#missing_alias' not found" in str(exc_info.value)
+
+    # Test 6: Get full item (no ProjectionExpression) should work normally
+    result = ddb.get_item(
+        TableName=TABLE_NAME, Key={"pk": {"S": "test_pk"}, "sk": {"S": "test_sk"}}
+    )
+
+    assert result is not None
+    item = DynamoDB.item_to_dict(result["Item"])
+    assert item == test_item  # Should return the full item
+
+    # Test 7: Non-reserved keywords should work without aliases
+    result = ddb.get_item(
+        TableName=TABLE_NAME,
+        Key={"pk": {"S": "test_pk"}, "sk": {"S": "test_sk"}},
+        ProjectionExpression="pk, sk, normal_field",
+    )
+
+    assert result is not None
+    item = DynamoDB.item_to_dict(result["Item"])
+    assert item["pk"] == "test_pk"
+    assert item["sk"] == "test_sk"
+    assert item["normal_field"] == "value"
+    assert len(item) == 3
+
+
+def test_get_item_expression_attribute_names_validation_behavior():
+    """Test that ExpressionAttributeNames properly bypasses reserved keyword validation."""
+    ddb = DynamoDBEmulator(None, allowed_reserved_keywords=["name"])
+    TABLE_NAME = "test_table"
+
+    # Store an item with a reserved keyword using allowed_keywords
+    test_item = {"pk": "test", "sk": "test", "name": "test_name"}
+    ddb.store_item(TABLE_NAME, test_item)
+
+    # Test 1: Direct use of reserved keyword in ProjectionExpression should fail
+    with pytest.raises(Exception) as exc_info:
+        ddb.get_item(
+            TableName=TABLE_NAME,
+            Key={"pk": {"S": "test"}, "sk": {"S": "test"}},
+            ProjectionExpression="pk, name",
+        )
+    assert "reserved keyword(s): ['name']" in str(exc_info.value)
+
+    # Test 2: Using ExpressionAttributeNames should validate the alias, not the resolved keyword
+    # The ProjectionExpression contains "#n" (not reserved), so validation should pass
+    result = ddb.get_item(
+        TableName=TABLE_NAME,
+        Key={"pk": {"S": "test"}, "sk": {"S": "test"}},
+        ProjectionExpression="pk, #n",
+        ExpressionAttributeNames={"#n": "name"},
+    )
+
+    assert result is not None
+    item = DynamoDB.item_to_dict(result["Item"])
+    assert item["pk"] == "test"
+    assert item["name"] == "test_name"
+
+    # Test 3: Even with ExpressionAttributeNames, if the alias itself is reserved, it should fail
+    with pytest.raises(Exception) as exc_info:
+        ddb.get_item(
+            TableName=TABLE_NAME,
+            Key={"pk": {"S": "test"}, "sk": {"S": "test"}},
+            ProjectionExpression="pk, status",  # 'status' in ProjectionExpression is reserved
+            ExpressionAttributeNames={
+                "#n": "name"
+            },  # This doesn't help because 'status' is not aliased
+        )
+    assert "reserved keyword(s): ['status']" in str(exc_info.value)
