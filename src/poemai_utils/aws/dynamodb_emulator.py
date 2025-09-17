@@ -764,7 +764,7 @@ class DynamoDBEmulator:
                 _ = json.dumps(item)
             except Exception as e:
                 _logger.warning(
-                    f"Item {item} is not serializable: {e}, continuing anyway, will probably crash later",
+                    f"Item {str(item)[:300]} is not serializable: {e}, continuing anyway, will probably crash later",
                     exc_info=True,
                 )
 
@@ -1209,12 +1209,17 @@ class DynamoDBEmulator:
             ):
                 # If projection is specified, filter the keys
                 if ProjectionExpression:
-                    projected_item = {
-                        k: v
-                        for k, v in item.items()
-                        if k in ProjectionExpression.split(",")
-                    }
-                    results.append(projected_item)
+                    projection_fields = [
+                        field.strip() for field in ProjectionExpression.split(",")
+                    ]
+
+                    # Check if the item has ALL the required projection fields
+                    if all(field in item for field in projection_fields):
+                        projected_item = {
+                            k: v for k, v in item.items() if k in projection_fields
+                        }
+                        results.append(projected_item)
+                    # If item is missing any projection field, skip it entirely
                 else:
                     results.append(item)
 

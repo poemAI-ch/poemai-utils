@@ -321,3 +321,66 @@ class TestDynamoDBEmulatorIndexProjection:
             # Should contain all attributes
             assert "site_id" in item_dict
             assert "extra_field" in item_dict
+
+    def test_projection_expression_with_missing_fields(self, emulator_with_enforcement):
+        """Test that projection expression properly handles items missing requested fields."""
+
+        # Add index for corpus_key -> raw_content_id (mimicking our real scenario)
+        emulator_with_enforcement.add_index(
+            table_name="test_table",
+            index_name="corpus_key-raw_content_id-index",
+            projection_type="KEYS_ONLY",
+            hash_key="corpus_key",
+            sort_key="raw_content_id",
+        )
+
+        # Store two types of items with same corpus_key:
+        # 1. CORPUS_METADATA item (has corpus_key but NO raw_content_id)
+        corpus_metadata_item = {
+            "pk": "CORPUS_METADATA#",
+            "sk": "CORPUS_KEY#test_corpus",
+            "corpus_key": "test_corpus",
+            "model": "test-model",
+            # Note: NO raw_content_id field
+        }
+        emulator_with_enforcement.store_item("test_table", corpus_metadata_item)
+
+        # 2. METADATA item (has both corpus_key AND raw_content_id)
+        metadata_item = {
+            "pk": "METADATA#",
+            "sk": "RAW_CONTENT_ID#abc123",
+            "corpus_key": "test_corpus",
+            "raw_content_id": "abc123",
+            "title": "Test Document",
+        }
+        emulator_with_enforcement.store_item("test_table", metadata_item)
+
+        # Query with projection expression that requests both pk and raw_content_id
+        results = list(
+            emulator_with_enforcement.get_paginated_items(
+                table_name="test_table",
+                key_condition_expression="corpus_key = :corpus_key",
+                expression_attribute_values={":corpus_key": {"S": "test_corpus"}},
+                projection_expression="pk,raw_content_id",  # This should filter out items without raw_content_id
+                index_name="corpus_key-raw_content_id-index",
+            )
+        )
+
+        # EXPECTED: Only 1 result (the METADATA item that has raw_content_id)
+        # ACTUAL BUG: 2 results including CORPUS_METADATA item without raw_content_id
+
+        print(f"Number of results: {len(results)}")
+        for i, result in enumerate(results):
+            item_dict = DynamoDB.item_to_dict(result)
+            print(f"Result {i}: {item_dict}")
+
+        # This assertion should pass but currently fails due to the bug
+        assert (
+            len(results) == 1
+        ), f"Expected 1 result, got {len(results)}: projection should filter out items missing raw_content_id"
+
+        # The single result should be the METADATA item
+        result_item = DynamoDB.item_to_dict(results[0])
+        assert result_item["pk"] == "METADATA#"
+        assert "raw_content_id" in result_item
+        assert result_item["raw_content_id"] == "abc123"

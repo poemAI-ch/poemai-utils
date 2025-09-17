@@ -79,7 +79,15 @@ def invoke_lambda_with_backoff(
                 InvocationType=invocation_type,
                 Payload=json.dumps(payload),
             )
-            # Read the payload from the response
+
+            # For Event invocations, don't read the payload to avoid waiting
+            if invocation_type == "Event":
+                _logger.info(f"Event invocation completed for {function_name}")
+                # For Event invocations, just return the response metadata
+                response["Payload"] = None
+                return response
+
+            # Read the payload from the response (for RequestResponse invocations)
             response_payload = (
                 response["Payload"].read().decode("utf-8")
             )  # Decoding from bytes to string

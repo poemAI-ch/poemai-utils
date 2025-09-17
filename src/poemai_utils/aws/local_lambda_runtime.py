@@ -59,10 +59,13 @@ To use boto3 to invoke the local lambda functions, you can use the following cod
 
 
 def app_setup():
+    import asyncio
     import json
 
+    import httpx
     import requests  # Import necessary modules for handling requests and JSON data
     from fastapi import FastAPI, HTTPException, Request
+    from fastapi.responses import JSONResponse
 
     app = FastAPI()
 
@@ -83,6 +86,15 @@ def app_setup():
     async def invoke_lambda(function_name: str, request: Request):
         # Extract payload from the request
         payload = await request.json()
+
+        # Check invocation type from headers
+        invocation_type = request.headers.get(
+            "X-Amz-Invocation-Type", "RequestResponse"
+        )
+        _logger.info(
+            f"Invocation type: {invocation_type} for function: {function_name}"
+        )
+
         # Get the base URL for the specified function
         base_url = get_function_base_url(function_name)
         if base_url is None:
@@ -92,7 +104,25 @@ def app_setup():
         # Build the full URL for invocation
         invocation_url = f"{base_url}/2015-03-31/functions/function/invocations"
         _logger.info(f"Forwarding request to {invocation_url}")
-        # Forward the request to the actual Lambda function endpoint
+
+        # For Event invocations, start async and return immediately
+        if invocation_type == "Event":
+            # Start the lambda function in the background without waiting
+            async def fire_and_forget():
+                try:
+                    async with httpx.AsyncClient(timeout=300.0) as client:
+                        await client.post(invocation_url, json=payload)
+                        _logger.info(f"Async lambda {function_name} completed")
+                except Exception as e:
+                    _logger.error(f"Async lambda {function_name} failed: {e}")
+
+            # Start the task but don't wait for it
+            asyncio.create_task(fire_and_forget())
+
+            # Return immediately for Event invocations
+            return JSONResponse(content={}, status_code=202)
+
+        # For RequestResponse invocations, wait for the response
         response = requests.post(invocation_url, json=payload)
         return response.json()
 
