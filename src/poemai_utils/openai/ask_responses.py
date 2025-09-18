@@ -368,7 +368,7 @@ class AskResponses:
 
     @staticmethod
     def convert_messages_to_input(
-        messages: List[Dict[str, str]]
+        messages: List[Dict[str, str]],
     ) -> tuple[Optional[str], Union[str, List[Dict[str, Any]]]]:
         """
         Convert Chat Completions messages format to Responses API format.

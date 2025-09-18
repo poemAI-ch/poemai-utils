@@ -1,6 +1,3 @@
-from enum import Enum, EnumType
-
-
 def _enum_str(self):
     return f"{self.__class__.__name__}.{self.name}"
 

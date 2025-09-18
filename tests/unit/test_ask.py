@@ -1,7 +1,6 @@
-import asyncio
 import json
 import logging
-from unittest.mock import AsyncMock, MagicMock, PropertyMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from poemai_utils.openai.ask import Ask

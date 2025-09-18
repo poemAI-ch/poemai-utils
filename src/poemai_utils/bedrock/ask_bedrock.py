@@ -1,12 +1,8 @@
 import base64
 import json
 import logging
-import os
-import sys
 from pathlib import Path
 
-import boto3
-import botocore
 import httpx
 import openai
 from poemai_utils.ai_model import AIApiType

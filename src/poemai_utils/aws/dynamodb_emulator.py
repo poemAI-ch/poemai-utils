@@ -3,14 +3,12 @@ import json
 import logging
 import re
 import threading
-from curses import raw
 
 from poemai_utils.aws.dynamodb import (
     DynamoDB,
     ItemAlreadyExistsException,
     VersionMismatchException,
 )
-from regex import P
 from sqlitedict import SqliteDict
 
 _logger = logging.getLogger(__name__)

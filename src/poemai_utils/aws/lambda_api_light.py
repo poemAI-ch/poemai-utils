@@ -19,7 +19,7 @@ from typing import (
     get_args,
     get_origin,
 )
-from urllib.parse import urlencode, urlparse
+from urllib.parse import urlencode
 
 _logger = logging.getLogger(__name__)
 

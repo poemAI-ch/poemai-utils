@@ -1,4 +1,3 @@
-import pytest
 from poemai_utils.state_machine import StateMachine
 
 

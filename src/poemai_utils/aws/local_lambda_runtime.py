@@ -60,7 +60,6 @@ To use boto3 to invoke the local lambda functions, you can use the following cod
 
 def app_setup():
     import asyncio
-    import json
 
     import httpx
     import requests  # Import necessary modules for handling requests and JSON data

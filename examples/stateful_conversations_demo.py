@@ -7,7 +7,9 @@ need to manually manage and send message history.
 """
 
 import os
-from poemai_utils.openai import AskResponses, ConversationManager
+
+from poemai_utils.openai import AskResponses
+
 
 def main():
     # Get API key from environment

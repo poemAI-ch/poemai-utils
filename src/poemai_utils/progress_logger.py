@@ -1,7 +1,7 @@
 import logging
 import time
 from contextlib import contextmanager
-from typing import Callable, Optional, Union
+from typing import Callable, Optional
 
 DEFAULT_INTERVAL = 8.0
 

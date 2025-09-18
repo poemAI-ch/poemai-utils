@@ -1,6 +1,6 @@
 import json
 import unittest
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 from poemai_utils.openai.ask_responses import AskResponses, PydanticLikeBox
 

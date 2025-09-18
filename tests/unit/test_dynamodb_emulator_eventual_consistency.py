@@ -2,7 +2,6 @@
 Unit tests for the eventual consistency simulator in DynamoDBEmulator.
 """
 
-import pytest
 from poemai_utils.aws.dynamodb_emulator import DynamoDBEmulator
 
 

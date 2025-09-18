@@ -2,6 +2,15 @@
 
 isort  $(find src -name '*.py' )  ; black  $(find src  -name '*.py' )  ; isort  $(find tests -name '*.py') ; black  $(find tests -name '*.py')
 
+# Check for unused imports (excluding simple.py files which are meant for import convenience)
+echo "Checking for unused imports..."
+flake8 --select=F401 --exclude="src/*/simple.py" src/
+if [ $? -ne 0 ]; then
+    echo "❌ Found unused imports! Please remove them before committing."
+    exit 1
+fi
+echo "✅ No unused imports found."
+
 npx prettier --write  .github/workflows/*.yml
 remote_branch=$(git rev-parse --abbrev-ref --symbolic-full-name @{u})
 

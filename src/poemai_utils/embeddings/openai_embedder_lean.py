@@ -1,5 +1,4 @@
 import logging
-from types import SimpleNamespace
 
 import numpy as np
 import requests

@@ -1,10 +1,6 @@
-import logging
 import time
-from io import StringIO
-from unittest.mock import Mock, patch
 
-import pytest
-from poemai_utils.progress_logger import ProgressLogger, progress_logger
+from poemai_utils.progress_logger import progress_logger
 
 
 def test_basic_functionality_with_total():

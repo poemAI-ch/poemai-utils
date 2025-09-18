@@ -33,7 +33,13 @@ jobs:
           # Install the package in development mode with test dependencies
           pip install -e .[testing]
           # Install additional test dependencies that aren't hard requirements
-          pip install boto3 python-dateutil pytest-asyncio boto3 numpy tiktoken
+          pip install boto3 python-dateutil pytest-asyncio boto3 numpy tiktoken flake8
+
+      - name: Check for unused imports
+        run: |
+          # Check for unused imports (excluding simple.py files which are meant for import convenience)
+          flake8 --select=F401 --exclude="src/*/simple.py" src/
+
       - name: Run unit tests
         run: |
           pytest tests/unit -v --tb=short

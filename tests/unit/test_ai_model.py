@@ -2,7 +2,7 @@ from enum import Enum
 
 import pytest
 from poemai_utils.ai_model import AIApiType, AIModel
-from poemai_utils.enum_utils import add_enum_attrs, add_enum_repr_attr
+from poemai_utils.enum_utils import add_enum_attrs
 
 
 @pytest.fixture(autouse=True)
