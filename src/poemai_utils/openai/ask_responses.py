@@ -131,6 +131,7 @@ class AskResponses:
         store: Optional[bool] = None,
         previous_response_id: Optional[str] = None,
         include: Optional[List[str]] = None,
+        reasoning: Optional[Dict[str, Any]] = None,
         additional_args: Optional[Dict[str, Any]] = None,
     ) -> Union[PydanticLikeBox, Any]:
         """
@@ -148,11 +149,12 @@ class AskResponses:
             stop: Stop sequences
             tools: Available tools/functions
             tool_choice: Tool choice strategy
-            response_format: Response format specification
+            response_format: Response format specification (mapped to Responses `text.format`)
             stream: Whether to stream the response
             store: Whether to store the conversation (default: True for stateful conversations)
             previous_response_id: ID of previous response for stateful conversations
             include: Additional data to include in response (e.g., ["reasoning.encrypted_content"])
+            reasoning: Reasoning configuration for reasoning-capable models (e.g., {"effort": "medium"})
             additional_args: Additional arguments to pass to the API
 
         Returns:
@@ -168,7 +170,6 @@ class AskResponses:
         data = {
             "model": use_model,
             "input": input_data,
-            "temperature": temperature,
         }
 
         if instructions is not None:
@@ -180,14 +181,28 @@ class AskResponses:
         if stop is not None:
             data["stop"] = stop
 
+        include_temperature = temperature
+        if self._model_supports_temperature(use_model):
+            data["temperature"] = include_temperature
+        elif include_temperature not in (None, 0):
+            _logger.warning(
+                "Model %s does not support temperature parameter; omitting it.",
+                use_model,
+            )
+
         if tools is not None:
-            data["tools"] = tools
+            data["tools"] = [self._normalize_tool_definition(tool) for tool in tools]
 
         if tool_choice is not None:
-            data["tool_choice"] = tool_choice
+            data["tool_choice"] = self._normalize_tool_choice(tool_choice)
 
         if response_format is not None:
-            data["response_format"] = response_format
+            text_config = data.get("text", {})
+            if not isinstance(text_config, dict):
+                text_config = {}
+            text_config = dict(text_config)
+            text_config["format"] = response_format
+            data["text"] = text_config
 
         if stream:
             data["stream"] = stream
@@ -200,6 +215,15 @@ class AskResponses:
 
         if include is not None:
             data["include"] = include
+
+        if reasoning is not None:
+            if self._model_supports_reasoning(use_model):
+                data["reasoning"] = reasoning
+            else:
+                _logger.warning(
+                    "Model %s does not support reasoning parameter; omitting it.",
+                    use_model,
+                )
 
         if additional_args is not None:
             data.update(additional_args)
@@ -223,6 +247,7 @@ class AskResponses:
                         return self._handle_streaming_response(response)
                     else:
                         response_json = response.json()
+                        self._ensure_output_text_field(response_json)
                         _logger.debug(
                             f"Received response from OpenAI Responses API: {response_json}"
                         )
@@ -411,6 +436,191 @@ class AskResponses:
             ConversationManager instance for handling stateful conversations
         """
         return ConversationManager(self)
+
+    @staticmethod
+    def _normalize_tool_definition(tool: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert legacy Responses tool definitions to the current schema."""
+
+        if not isinstance(tool, dict):
+            return tool
+
+        if tool.get("type") != "function" or "function" not in tool:
+            return tool
+
+        function_block = tool.get("function") or {}
+        normalized = {k: v for k, v in tool.items() if k != "function"}
+        normalized.setdefault("type", "function")
+
+        if function_block.get("name"):
+            normalized["name"] = function_block["name"]
+
+        if "description" in function_block:
+            normalized["description"] = function_block["description"]
+
+        parameters = function_block.get("parameters")
+        normalized["parameters"] = AskResponses._ensure_function_schema(parameters)
+
+        if "strict" in function_block:
+            normalized["strict"] = function_block["strict"]
+
+        # Preserve any additional keys on the legacy function definition
+        for key, value in function_block.items():
+            if key in {"name", "description", "parameters", "strict"}:
+                continue
+            normalized[key] = value
+
+        return normalized
+
+    @staticmethod
+    def _normalize_tool_choice(
+        tool_choice: Union[str, Dict[str, Any]],
+    ) -> Union[str, Dict[str, Any]]:
+        """Normalize legacy tool_choice structures to the current schema."""
+
+        if not isinstance(tool_choice, dict):
+            return tool_choice
+
+        if tool_choice.get("type") != "function":
+            return tool_choice
+
+        if "name" in tool_choice:
+            return tool_choice
+
+        if "function" in tool_choice:
+            function_block = tool_choice.get("function") or {}
+            normalized = {k: v for k, v in tool_choice.items() if k != "function"}
+            if "name" not in normalized:
+                normalized["name"] = function_block.get("name")
+            return normalized
+
+        return tool_choice
+
+    @staticmethod
+    def _ensure_function_schema(
+        parameters: Optional[Union[Dict[str, Any], List[Any]]],
+    ) -> Dict[str, Any]:
+        """Ensure function tool schemas comply with Responses requirements."""
+
+        if not isinstance(parameters, dict):
+            return {}
+
+        schema = dict(parameters)
+
+        properties = schema.get("properties")
+        if not isinstance(properties, dict):
+            properties = {}
+            schema["properties"] = properties
+
+        required = schema.get("required")
+        if required is None:
+            required = [
+                name
+                for name, details in properties.items()
+                if isinstance(details, dict) and details.get("required") is True
+            ]
+            if required:
+                schema["required"] = required
+        elif not isinstance(required, list):
+            schema["required"] = list(required)
+
+        if schema.get("type") == "object" and "additionalProperties" not in schema:
+            schema["additionalProperties"] = False
+        return schema
+
+    @staticmethod
+    def _model_supports_temperature(model: str) -> bool:
+        try:
+            model_enum = OPENAI_MODEL(model)
+        except ValueError:
+            return True
+
+        supports = getattr(model_enum, "supports_temperature", True)
+        return bool(supports)
+
+    @staticmethod
+    def _model_supports_reasoning(model: str) -> bool:
+        try:
+            model_enum = OPENAI_MODEL(model)
+        except ValueError:
+            return True
+
+        return bool(getattr(model_enum, "supports_reasoning", False))
+
+    @staticmethod
+    def extract_tool_calls(
+        response: Union[PydanticLikeBox, Dict[str, Any]],
+    ) -> List[PydanticLikeBox]:
+        """Extract tool call payloads from a Responses API response."""
+
+        response_dict = response.to_dict() if isinstance(response, Box) else response
+        tool_calls: List[PydanticLikeBox] = []
+
+        for block in response_dict.get("output", []) or []:
+            block_type = block.get("type")
+
+            if block_type in {"tool_call", "function_call"}:
+                payload = block.get("tool_call") or block
+                if payload:
+                    normalized = dict(payload)
+                    if "tool_name" in normalized and "name" not in normalized:
+                        normalized["name"] = normalized["tool_name"]
+                    if "arguments" in normalized and isinstance(
+                        normalized["arguments"], dict
+                    ):
+                        normalized["arguments"] = json.dumps(normalized["arguments"])
+                    tool_calls.append(PydanticLikeBox(normalized))
+                continue
+
+            if block_type == "message":
+                for content in block.get("content", []) or []:
+                    content_type = content.get("type")
+                    if content_type in {"tool_call", "tool_use", "function_call"}:
+                        payload = content.get("tool_call") or content
+                        if payload:
+                            normalized = dict(payload)
+                            if "tool_name" in normalized and "name" not in normalized:
+                                normalized["name"] = normalized["tool_name"]
+                            if "arguments" in normalized and isinstance(
+                                normalized["arguments"], dict
+                            ):
+                                normalized["arguments"] = json.dumps(
+                                    normalized["arguments"]
+                                )
+                            tool_calls.append(PydanticLikeBox(normalized))
+
+        return tool_calls
+
+    @staticmethod
+    def _ensure_output_text_field(response_json: Dict[str, Any]) -> None:
+        """Populate output_text by aggregating message content when missing."""
+
+        if response_json.get("output_text"):
+            return
+
+        outputs = response_json.get("output") or []
+        chunks: List[str] = []
+
+        for block in outputs:
+            if not isinstance(block, dict):
+                continue
+
+            if block.get("type") == "message":
+                for content in block.get("content", []) or []:
+                    if not isinstance(content, dict):
+                        continue
+                    content_type = content.get("type")
+                    if content_type in {"output_text", "text"}:
+                        text_value = content.get("text")
+                        if isinstance(text_value, str):
+                            chunks.append(text_value)
+
+            elif block.get("type") == "output_text":
+                text_value = block.get("text")
+                if isinstance(text_value, str):
+                    chunks.append(text_value)
+
+        if chunks:
+            response_json["output_text"] = "".join(chunks)
 
 
 # Backward compatibility alias

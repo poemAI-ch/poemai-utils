@@ -138,7 +138,14 @@ class TestAskLeanResponses(unittest.TestCase):
 
         # Verify tools were passed correctly
         request_data = json.loads(mock_post.call_args[1]["data"])
-        self.assertEqual(request_data["tools"], tools)
+        normalized_tools = request_data["tools"]
+        self.assertEqual(len(normalized_tools), 1)
+        tool_payload = normalized_tools[0]
+        self.assertEqual(tool_payload["type"], "function")
+        self.assertEqual(tool_payload["name"], "calculator")
+        if "type" in tool_payload.get("parameters", {}):
+            self.assertFalse(tool_payload["parameters"]["additionalProperties"])
+        self.assertNotIn("strict", tool_payload)
         self.assertEqual(request_data["tool_choice"], "auto")
 
     @patch("poemai_utils.openai.ask_responses.requests.post")
@@ -167,7 +174,10 @@ class TestAskLeanResponses(unittest.TestCase):
 
         # Verify response_format was passed correctly
         request_data = json.loads(mock_post.call_args[1]["data"])
-        self.assertEqual(request_data["response_format"], response_format)
+        self.assertEqual(
+            request_data["text"],
+            {"format": response_format},
+        )
         self.assertEqual(response.choices[0].message.content, '{"answer": "Paris"}')
 
     @patch("poemai_utils.openai.ask_responses.requests.post")

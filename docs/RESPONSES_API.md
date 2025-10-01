@@ -343,25 +343,27 @@ response = ask.ask_vision(
 tools = [
     {
         "type": "function",
-        "function": {
-            "name": "get_weather",
-            "description": "Get current weather",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "location": {"type": "string", "description": "City name"}
-                },
-                "required": ["location"]
-            }
-        }
+        "name": "get_weather",
+        "description": "Get current weather",
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "location": {"type": "string", "description": "City name"}
+            },
+            "required": ["location"],
+            "additionalProperties": False,
+        },
     }
 ]
 
 response = ask.ask(
     input_data="What's the weather in Paris?",
     tools=tools,
-    tool_choice="auto"
+    tool_choice={"type": "function", "name": "get_weather"}
 )
+
+# Legacy definitions using `{"function": {...}}` are automatically normalized,
+# so existing integrations continue to work.
 ```
 
 ### Structured Outputs
@@ -376,6 +378,9 @@ response = ask.ask(
 # Response will be structured JSON
 data = json.loads(response.output_text)
 print(data["name"], data["age"])
+
+# Under the hood this sets the Responses `text.format` field so the API
+# receives the latest structured output directive.
 ```
 
 ### Streaming
