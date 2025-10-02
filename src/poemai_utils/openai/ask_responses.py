@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+from collections.abc import Mapping
 from typing import Any, Dict, List, Optional, Union
 
 import requests
@@ -13,6 +14,14 @@ _logger = logging.getLogger(__name__)
 class PydanticLikeBox(Box):
     def dict(self):
         return self.to_dict()
+
+    def model_dump(self, *_, **__):
+        """Mimic pydantic's model_dump for compatibility with tests."""
+        return self.to_dict()
+
+    def model_dump_json(self, *_, **__):
+        """Provide json dump helper similar to pydantic."""
+        return json.dumps(self.to_dict())
 
 
 class ConversationManager:
@@ -31,7 +40,7 @@ class ConversationManager:
 
     def send(
         self,
-        input_data: Union[str, List[Dict[str, Any]]],
+        input_data: Union[str, Dict[str, Any], List[Dict[str, Any]]],
         instructions: Optional[str] = None,
         **kwargs,
     ) -> PydanticLikeBox:
@@ -122,7 +131,6 @@ class AskResponses:
         model: Optional[str] = None,
         instructions: Optional[str] = None,
         temperature: float = 0,
-        max_tokens: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
@@ -140,12 +148,11 @@ class AskResponses:
         Args:
             input_data: The input to the model. Can be:
                 - A string for simple text input
-                - A list of content objects for complex inputs (vision, etc.)
-                - For multi-turn conversations, use a list of message objects
+                - A dict representing a single message (will be wrapped automatically)
+                - A list of content/message objects for complex or multi-turn inputs
             instructions: System instructions for the model (replaces system messages)
             model: Model to use (overrides instance default)
             temperature: Sampling temperature (0-2)
-            max_tokens: IGNORED - The Responses API does not support max_tokens parameter
             stop: Stop sequences
             tools: Available tools/functions
             tool_choice: Tool choice strategy
@@ -167,9 +174,11 @@ class AskResponses:
             "Authorization": f"Bearer {self.openai_api_key}",
         }
 
+        normalized_input = self._normalize_input_payload(input_data)
+
         data = {
             "model": use_model,
-            "input": input_data,
+            "input": normalized_input,
         }
 
         if instructions is not None:
@@ -545,6 +554,22 @@ class AskResponses:
             return True
 
         return bool(getattr(model_enum, "supports_reasoning", False))
+
+    @staticmethod
+    def _normalize_input_payload(
+        input_data: Union[str, List[Dict[str, Any]], Mapping[str, Any]],
+    ) -> Union[str, List[Dict[str, Any]]]:
+        """Coerce dict-style inputs into a list so Responses API accepts them."""
+
+        if isinstance(input_data, Mapping):
+            if isinstance(input_data, Box):
+                payload = input_data.to_dict()
+            else:
+                payload = dict(input_data)
+
+            return [payload]
+
+        return input_data
 
     @staticmethod
     def extract_tool_calls(

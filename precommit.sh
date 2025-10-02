@@ -4,7 +4,7 @@ isort  $(find src -name '*.py' )  ; black  $(find src  -name '*.py' )  ; isort  
 
 # Check for unused imports (excluding simple.py files which are meant for import convenience)
 echo "Checking for unused imports..."
-flake8 --select=F401 --exclude="src/*/__init__.py" src/
+flake8 --select=F401 --exclude="src/*/__init__.py,src/*/simple.py" src/
 if [ $? -ne 0 ]; then
     echo "❌ Found unused imports! Please remove them before committing."
     exit 1
