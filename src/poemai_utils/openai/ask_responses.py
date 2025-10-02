@@ -132,6 +132,7 @@ class AskResponses:
         instructions: Optional[str] = None,
         temperature: float = 0,
         max_tokens: Optional[int] = None,
+        max_output_tokens: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
@@ -155,6 +156,7 @@ class AskResponses:
             model: Model to use (overrides instance default)
             temperature: Sampling temperature (0-2)
             max_tokens: IGNORED - The Responses API does not support max_tokens parameter
+            max_output_tokens: Limit on response tokens for Responses API
             stop: Stop sequences
             tools: Available tools/functions
             tool_choice: Tool choice strategy
@@ -200,6 +202,14 @@ class AskResponses:
                 "Model %s does not support temperature parameter; omitting it.",
                 use_model,
             )
+
+        if max_tokens is not None:
+            _logger.warning(
+                "The Responses API does not support max_tokens parameter; ignoring it. Use max_output_tokens instead."
+            )
+
+        if max_output_tokens is not None:
+            data["max_output_tokens"] = max_output_tokens
 
         if tools is not None:
             data["tools"] = [self._normalize_tool_definition(tool) for tool in tools]

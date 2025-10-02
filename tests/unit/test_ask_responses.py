@@ -203,6 +203,27 @@ class TestAskResponses(unittest.TestCase):
         self.assertEqual(response.output_text, "Answer")
         self.assertEqual(len(response.reasoning.content), 2)
 
+    @patch("poemai_utils.openai.ask_responses.requests.post")
+    def test_ask_with_max_output_tokens(self, mock_post):
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "resp_max_output",
+            "model": "gpt-4o-mini",
+            "output_text": "Hello there!",
+        }
+        mock_post.return_value = mock_response
+
+        response = self.ask_responses.ask(
+            input_data="Say hello",
+            max_output_tokens=42,
+        )
+
+        args, kwargs = mock_post.call_args
+        request_data = json.loads(kwargs["data"])
+        self.assertEqual(request_data["max_output_tokens"], 42)
+        self.assertEqual(response.output_text, "Hello there!")
+
     def test_extract_tool_calls_from_message_content(self):
         response_payload = PydanticLikeBox(
             {
