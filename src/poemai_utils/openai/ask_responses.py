@@ -131,6 +131,7 @@ class AskResponses:
         model: Optional[str] = None,
         instructions: Optional[str] = None,
         temperature: float = 0,
+        max_tokens: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
@@ -153,6 +154,7 @@ class AskResponses:
             instructions: System instructions for the model (replaces system messages)
             model: Model to use (overrides instance default)
             temperature: Sampling temperature (0-2)
+            max_tokens: IGNORED - The Responses API does not support max_tokens parameter
             stop: Stop sequences
             tools: Available tools/functions
             tool_choice: Tool choice strategy
