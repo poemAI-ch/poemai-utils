@@ -23,7 +23,7 @@ class TestMaxTokensRequestInspection(unittest.TestCase):
 
         # Make the API call
         self.ask_responses.ask(
-            input_data="Test message",
+            input="Test message",
             instructions="You are helpful",
             # Note: max_tokens not specified, so it uses default of 600
         )

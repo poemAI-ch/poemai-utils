@@ -29,7 +29,7 @@ class TestAskResponses(unittest.TestCase):
 
         # Test simple text input
         response = self.ask_responses.ask(
-            input_data="Hello, world!", instructions="Be helpful.", max_tokens=100
+            input="Hello, world!", instructions="Be helpful.", max_tokens=100
         )
 
         # Verify request was made correctly
@@ -115,7 +115,7 @@ class TestAskResponses(unittest.TestCase):
         mock_post.return_value = mock_response
 
         response = self.ask_responses.ask(
-            input_data="What's the weather in Paris?",
+            input="What's the weather in Paris?",
             tools=tools,
             tool_choice={"type": "function", "function": {"name": "get_weather"}},
         )
@@ -154,7 +154,7 @@ class TestAskResponses(unittest.TestCase):
         mock_post.return_value = mock_response
 
         response = self.ask_responses.ask(
-            input_data="Extract name and age from 'John is 25 years old'.",
+            input="Extract name and age from 'John is 25 years old'.",
             instructions="Return a JSON object with fields name and age.",
             response_format={"type": "json_object"},
         )
@@ -188,7 +188,7 @@ class TestAskResponses(unittest.TestCase):
         mock_post.return_value = mock_response
 
         response = self.ask_responses.ask(
-            input_data="Add 2 and 2.",
+            input="Add 2 and 2.",
             reasoning={"effort": "medium"},
             include=["message.output_text.logprobs"],
             model="gpt-5",
@@ -215,7 +215,7 @@ class TestAskResponses(unittest.TestCase):
         mock_post.return_value = mock_response
 
         response = self.ask_responses.ask(
-            input_data="Say hello",
+            input="Say hello",
             max_output_tokens=42,
         )
 
@@ -347,7 +347,7 @@ class TestAskResponses(unittest.TestCase):
         ]
 
         first = ask.ask(
-            input_data=[
+            input=[
                 {
                     "role": "user",
                     "content": "Convert 120 CHF to EUR and show your calculation.",
@@ -387,7 +387,7 @@ class TestAskResponses(unittest.TestCase):
         tool_result = {"ok": True, "rate": 1.04, "base": "CHF", "quote": "EUR"}
 
         second = ask.ask(
-            input_data=[
+            input=[
                 {
                     "type": "function_call_output",
                     "call_id": getattr(call, "call_id", getattr(call, "id", None)),
@@ -455,10 +455,10 @@ class TestAskResponses(unittest.TestCase):
             {"role": "user", "content": "Hello!"},
         ]
 
-        instructions, input_data = AskResponses.convert_messages_to_input(messages)
+        instructions, input = AskResponses.convert_messages_to_input(messages)
 
         self.assertEqual(instructions, "You are helpful.")
-        self.assertEqual(input_data, "Hello!")
+        self.assertEqual(input, "Hello!")
 
         # Test multiple messages
         messages = [
@@ -468,7 +468,7 @@ class TestAskResponses(unittest.TestCase):
             {"role": "user", "content": "How are you?"},
         ]
 
-        instructions, input_data = AskResponses.convert_messages_to_input(messages)
+        instructions, input = AskResponses.convert_messages_to_input(messages)
 
         self.assertEqual(instructions, "You are helpful.")
         expected_input = [
@@ -476,7 +476,7 @@ class TestAskResponses(unittest.TestCase):
             {"role": "assistant", "content": "Hi there!"},
             {"role": "user", "content": "How are you?"},
         ]
-        self.assertEqual(input_data, expected_input)
+        self.assertEqual(input, expected_input)
 
         # Test multiple system messages
         messages = [
@@ -485,10 +485,10 @@ class TestAskResponses(unittest.TestCase):
             {"role": "user", "content": "Hello!"},
         ]
 
-        instructions, input_data = AskResponses.convert_messages_to_input(messages)
+        instructions, input = AskResponses.convert_messages_to_input(messages)
 
         self.assertEqual(instructions, "You are helpful.\n\nBe concise.")
-        self.assertEqual(input_data, "Hello!")
+        self.assertEqual(input, "Hello!")
 
     @patch("poemai_utils.openai.ask_responses.requests.post")
     def test_retry_on_server_error(self, mock_post):
@@ -505,7 +505,7 @@ class TestAskResponses(unittest.TestCase):
         mock_post.side_effect = [error_response, success_response]
 
         with patch("time.sleep"):  # Don't actually sleep in tests
-            response = self.ask_responses.ask(input_data="Test")
+            response = self.ask_responses.ask(input="Test")
 
         self.assertEqual(response.output_text, "Success!")
         self.assertEqual(mock_post.call_count, 2)
@@ -521,7 +521,7 @@ class TestAskResponses(unittest.TestCase):
 
         with patch("time.sleep"):  # Don't actually sleep in tests
             with self.assertRaises(RuntimeError) as context:
-                self.ask_responses.ask(input_data="Test")
+                self.ask_responses.ask(input="Test")
 
             self.assertIn("OpenAI Responses API call failed", str(context.exception))
 
@@ -534,7 +534,7 @@ class TestAskResponses(unittest.TestCase):
         mock_post.return_value = error_response
 
         with self.assertRaises(RuntimeError):
-            self.ask_responses.ask(input_data="Test")
+            self.ask_responses.ask(input="Test")
 
         # Should only be called once (no retries for client errors)
         self.assertEqual(mock_post.call_count, 1)

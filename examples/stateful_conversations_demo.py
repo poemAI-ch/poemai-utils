@@ -28,7 +28,7 @@ def main():
     
     # Traditional approach: Manual state management
     response1 = ask.ask(
-        input_data="What is the capital of France?",
+        input="What is the capital of France?",
         instructions="You are a helpful geography assistant.",
         store=True  # Enable storage to get response IDs
     )
@@ -39,7 +39,7 @@ def main():
     
     # Follow-up question using previous_response_id
     response2 = ask.ask(
-        input_data="What about its population?",
+        input="What about its population?",
         previous_response_id=getattr(response1, 'id', None),
         store=True
     )
@@ -58,7 +58,7 @@ def main():
     
     # First message
     response1 = conversation.send(
-        input_data="Tell me about renewable energy.",
+        input="Tell me about renewable energy.",
         instructions="You are an expert on environmental topics."
     )
     
@@ -105,7 +105,7 @@ def main():
     
     try:
         response = tools_conversation.send(
-            input_data="Search for the latest news about artificial intelligence breakthroughs.",
+            input="Search for the latest news about artificial intelligence breakthroughs.",
             instructions="You are a research assistant. Use web search when needed.",
             tools=[{"type": "web_search_preview"}]  # Built-in web search tool
         )
@@ -130,7 +130,7 @@ def main():
     # Example of ZDR-compatible usage
     try:
         zdr_response = ask.ask(
-            input_data="Analyze this sensitive data...",
+            input="Analyze this sensitive data...",
             instructions="You are a data analyst.",
             store=False,  # Disable storage for ZDR compliance
             include=["reasoning.encrypted_content"]  # Use encrypted reasoning

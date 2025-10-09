@@ -29,7 +29,7 @@ class TestStatefulConversations(unittest.TestCase):
 
         # Test request with stateful parameters
         response = self.ask_responses.ask(
-            input_data="Hello",
+            input="Hello",
             instructions="Be helpful",
             store=True,
             previous_response_id="resp_previous_123",
@@ -71,7 +71,7 @@ class TestStatefulConversations(unittest.TestCase):
         mock_post.return_value = mock_response
 
         conversation = self.ask_responses.start_conversation()
-        response = conversation.send(input_data="Hello", instructions="Be helpful")
+        response = conversation.send(input="Hello", instructions="Be helpful")
 
         # Verify the first message sets up stateful conversation
         request_data = json.loads(mock_post.call_args[1]["data"])
@@ -204,7 +204,7 @@ class TestStatefulConversations(unittest.TestCase):
 
         conversation = self.ask_responses.start_conversation()
         response = conversation.send(
-            input_data="Search for Python tutorials",
+            input="Search for Python tutorials",
             tools=[{"type": "web_search_preview"}],
         )
 
@@ -243,7 +243,7 @@ class TestStatefulConversations(unittest.TestCase):
         mock_post.return_value = mock_response
 
         conversation = self.ask_responses.start_conversation()
-        conversation.send(input_data="Test message", instructions="Test instructions")
+        conversation.send(input="Test message", instructions="Test instructions")
 
         # Verify history entry
         self.assertEqual(len(conversation.conversation_history), 1)

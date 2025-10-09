@@ -190,7 +190,7 @@ if __name__ == "__main__":
         # Call WITHOUT specifying max_tokens - it defaults to 600
         with self.assertRaises(RuntimeError) as context:
             self.ask_responses.ask(
-                input_data="Test message",
+                input="Test message",
                 instructions="You are a helpful assistant",
                 # max_tokens not specified, defaults to 600
             )

@@ -175,11 +175,11 @@ class AskLean:
         # Convert messages to Responses API format
         from poemai_utils.openai.ask_responses import AskResponses
 
-        instructions, input_data = AskResponses.convert_messages_to_input(messages)
+        instructions, input = AskResponses.convert_messages_to_input(messages)
 
         # Make the call using Responses API
         response = responses_api.ask(
-            input_data=input_data,
+            input=input,
             instructions=instructions,
             model=model,
             temperature=temperature,

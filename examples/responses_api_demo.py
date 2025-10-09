@@ -43,7 +43,7 @@ def main():
     
     try:
         response = ask_responses.ask(
-            input_data="What is the difference between a list and a tuple in Python?",
+            input="What is the difference between a list and a tuple in Python?",
             instructions="You are a helpful coding assistant.",
             max_tokens=200
         )
@@ -85,9 +85,9 @@ def main():
     
     # Example 5: Converting messages format
     print("5. Converting message format")
-    instructions, input_data = AskResponses.convert_messages_to_input(messages)
+    instructions, input = AskResponses.convert_messages_to_input(messages)
     print(f"Instructions: {instructions}")
-    print(f"Input data: {input_data}")
+    print(f"Input data: {input}")
     
     print("\n" + "="*50 + "\n")
     

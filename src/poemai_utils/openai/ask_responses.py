@@ -12,6 +12,9 @@ _logger = logging.getLogger(__name__)
 
 
 class PydanticLikeBox(Box):
+
+    __init__ = Box.__init__
+
     def dict(self):
         return self.to_dict()
 
@@ -40,7 +43,7 @@ class ConversationManager:
 
     def send(
         self,
-        input_data: Union[str, Dict[str, Any], List[Dict[str, Any]]],
+        input,
         instructions: Optional[str] = None,
         **kwargs,
     ) -> PydanticLikeBox:
@@ -48,7 +51,7 @@ class ConversationManager:
         Send a message in the stateful conversation.
 
         Args:
-            input_data: The input message
+            input: The input data
             instructions: System instructions (only used for first message typically)
             **kwargs: Additional arguments passed to ask()
 
@@ -63,7 +66,7 @@ class ConversationManager:
             kwargs["previous_response_id"] = self.last_response_id
 
         response = self.ask_responses.ask(
-            input_data=input_data, instructions=instructions, **kwargs
+            input=input, instructions=instructions, **kwargs
         )
 
         # Store the response ID for next message
@@ -73,7 +76,7 @@ class ConversationManager:
         # Keep a local history for debugging/reference (optional)
         self.conversation_history.append(
             {
-                "input": input_data,
+                "input": input,
                 "instructions": instructions,
                 "response_id": getattr(response, "id", None),
                 "output_text": getattr(response, "output_text", None),
@@ -127,7 +130,7 @@ class AskResponses:
 
     def ask(
         self,
-        input_data: Union[str, List[Dict[str, Any]]],
+        input: Union[str, List[Dict[str, Any]]],
         model: Optional[str] = None,
         instructions: Optional[str] = None,
         temperature: float = 0,
@@ -143,12 +146,13 @@ class AskResponses:
         include: Optional[List[str]] = None,
         reasoning: Optional[Dict[str, Any]] = None,
         additional_args: Optional[Dict[str, Any]] = None,
+        parallel_tool_calls: Optional[bool] = None,
     ) -> Union[PydanticLikeBox, Any]:
         """
         Send a request to OpenAI's Responses API.
 
         Args:
-            input_data: The input to the model. Can be:
+            input: The input to the model. Can be:
                 - A string for simple text input
                 - A dict representing a single message (will be wrapped automatically)
                 - A list of content/message objects for complex or multi-turn inputs
@@ -178,11 +182,25 @@ class AskResponses:
             "Authorization": f"Bearer {self.openai_api_key}",
         }
 
-        normalized_input = self._normalize_input_payload(input_data)
+        _logger.info(f"input is of type {type(input)}")
+        if not isinstance(input, (str, list)):
+            raise ValueError("Input must be a string or a list of message dicts")
+
+        if isinstance(input, list):
+            if not all(isinstance(msg, Mapping) for msg in input):
+                raise ValueError("ask: If input is a list, each item must be a dict")
+            if not all(
+                isinstance(msg.get("content"), (str, list))
+                for msg in input
+                if "content" in msg
+            ):
+                raise ValueError(
+                    "ask: If input is a list, each message's content must be a string or a list if present"
+                )
 
         data = {
             "model": use_model,
-            "input": normalized_input,
+            "input": input,
         }
 
         if instructions is not None:
@@ -208,6 +226,8 @@ class AskResponses:
                 "The Responses API does not support max_tokens parameter; ignoring it. Use max_output_tokens instead."
             )
 
+        if parallel_tool_calls is not None:
+            data["parallel_tool_calls"] = parallel_tool_calls
         if max_output_tokens is not None:
             data["max_output_tokens"] = max_output_tokens
 
@@ -248,6 +268,10 @@ class AskResponses:
 
         if additional_args is not None:
             data.update(additional_args)
+
+        _logger.debug(
+            f"Sending data to api:\n{json.dumps(data, indent=2, ensure_ascii=False)}"
+        )
 
         for attempt in range(self.max_retries):
             try:
@@ -337,7 +361,7 @@ class AskResponses:
             Generated text as a string
         """
         response = self.ask(
-            input_data=prompt,
+            input=prompt,
             instructions=instructions,
             model=model,
             temperature=temperature,
@@ -368,7 +392,7 @@ class AskResponses:
         Returns:
             Generated text as a string
         """
-        input_data = [
+        input = [
             {
                 "role": "user",
                 "content": [
@@ -379,7 +403,7 @@ class AskResponses:
         ]
 
         response = self.ask(
-            input_data=input_data,
+            input=input,
             instructions=instructions,
             model=model,
             temperature=temperature,
@@ -423,7 +447,7 @@ class AskResponses:
             messages: List of message dictionaries with 'role' and 'content'
 
         Returns:
-            Tuple of (instructions, input_data)
+            Tuple of (instructions, input)
         """
         instructions = None
         input_messages = []
@@ -569,19 +593,19 @@ class AskResponses:
 
     @staticmethod
     def _normalize_input_payload(
-        input_data: Union[str, List[Dict[str, Any]], Mapping[str, Any]],
+        input: Union[str, List[Dict[str, Any]], Mapping[str, Any]],
     ) -> Union[str, List[Dict[str, Any]]]:
         """Coerce dict-style inputs into a list so Responses API accepts them."""
 
-        if isinstance(input_data, Mapping):
-            if isinstance(input_data, Box):
-                payload = input_data.to_dict()
+        if isinstance(input, Mapping):
+            if isinstance(input, Box):
+                payload = input.to_dict()
             else:
-                payload = dict(input_data)
+                payload = dict(input)
 
             return [payload]
 
-        return input_data
+        return input
 
     @staticmethod
     def extract_tool_calls(
