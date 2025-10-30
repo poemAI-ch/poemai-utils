@@ -1,6 +1,7 @@
 import logging
 import uuid
 from collections import defaultdict
+from decimal import Decimal
 
 import pytest
 from poemai_utils.aws.dynamodb import DynamoDB, VersionMismatchException
@@ -1130,3 +1131,146 @@ def test_get_item_expression_attribute_names_validation_behavior():
             },  # This doesn't help because 'status' is not aliased
         )
     assert "reserved keyword(s): ['status']" in str(exc_info.value)
+
+
+def test_float_and_Decimal():
+    ddb = DynamoDBEmulator(None)
+    TEST_TABLE_NAME = "test_table"
+
+    with pytest.raises(TypeError):
+        ddb.store_item(
+            TEST_TABLE_NAME, {"pk": "pk1", "sk": "sk1", "float_value": 12.34}
+        )
+
+    ddb.store_item(
+        TEST_TABLE_NAME,
+        {"pk": "pk2", "sk": "sk2", "decimal_value": Decimal("56.78")},
+    )
+
+    item2 = ddb.get_item_by_pk_sk(TEST_TABLE_NAME, "pk2", "sk2")
+
+    assert isinstance(item2["decimal_value"], Decimal)
+    assert item2["decimal_value"] == Decimal("56.78")
+
+
+def test_decimal_serialization_no_warning(caplog):
+    """Test that Decimal values don't produce serialization warnings."""
+    from unittest.mock import MagicMock
+
+    ddb = DynamoDBEmulator(None, allowed_reserved_keywords=["data"])
+    TEST_TABLE_NAME = "test_table"
+
+    # Clear any existing log messages
+    caplog.clear()
+
+    # Test that Decimal values don't produce warnings
+    with caplog.at_level(logging.WARNING):
+        ddb.store_item(
+            TEST_TABLE_NAME,
+            {"pk": "pk1", "sk": "sk1", "decimal_value": Decimal("123.45")},
+        )
+
+    # Should be no warning messages about Decimal serialization
+    warning_messages = [
+        record.message for record in caplog.records if record.levelno >= logging.WARNING
+    ]
+    decimal_warnings = [
+        msg for msg in warning_messages if "Decimal" in msg and "serializable" in msg
+    ]
+    assert (
+        len(decimal_warnings) == 0
+    ), f"Unexpected Decimal serialization warnings: {decimal_warnings}"
+
+    # Verify the item was stored correctly
+    item = ddb.get_item_by_pk_sk(TEST_TABLE_NAME, "pk1", "sk1")
+    assert isinstance(item["decimal_value"], Decimal)
+    assert item["decimal_value"] == Decimal("123.45")
+
+    # Test that truly non-serializable objects still produce warnings
+    caplog.clear()
+    mock_obj = MagicMock()
+
+    with caplog.at_level(logging.WARNING):
+        # This should produce a warning about JSON serialization and fail immediately
+        with pytest.raises(TypeError, match="Item contains unserializable data"):
+            ddb.store_item(
+                TEST_TABLE_NAME, {"pk": "pk2", "sk": "sk2", "mock_value": mock_obj}
+            )
+
+    # Should have a warning about the mock object
+    warning_messages = [
+        record.message for record in caplog.records if record.levelno >= logging.WARNING
+    ]
+    mock_warnings = [msg for msg in warning_messages if "serializable" in msg]
+    assert len(mock_warnings) > 0, "Expected warning about non-serializable mock object"
+
+
+def test_binary_data_serialization_no_warning(caplog):
+    """Test that binary data doesn't produce serialization warnings."""
+
+    ddb = DynamoDBEmulator(None, allowed_reserved_keywords=["data"])
+    TEST_TABLE_NAME = "test_table"
+
+    # Clear any existing log messages
+    caplog.clear()
+
+    # Test that binary data doesn't produce warnings
+    binary_data = b"some binary data with special chars \x00\x01\x02\xff"
+
+    with caplog.at_level(logging.WARNING):
+        ddb.store_item(
+            TEST_TABLE_NAME, {"pk": "pk1", "sk": "sk1", "binary_value": binary_data}
+        )
+
+    # Should be no warning messages about binary data serialization
+    warning_messages = [
+        record.message for record in caplog.records if record.levelno >= logging.WARNING
+    ]
+    binary_warnings = [msg for msg in warning_messages if "serializable" in msg]
+    assert (
+        len(binary_warnings) == 0
+    ), f"Unexpected binary data serialization warnings: {binary_warnings}"
+
+    # Verify the item was stored correctly
+    item = ddb.get_item_by_pk_sk(TEST_TABLE_NAME, "pk1", "sk1")
+    # DynamoDB emulator wraps binary data in BinaryPoemai objects
+    assert hasattr(
+        item["binary_value"], "value"
+    ), "Binary data should be wrapped in BinaryPoemai"
+    assert isinstance(item["binary_value"].value, bytes), "Binary value should be bytes"
+    assert (
+        item["binary_value"].value == binary_data
+    ), "Binary data should match original"
+
+    # Test with bytearray as well
+    caplog.clear()
+    bytearray_data = bytearray(b"bytearray data")
+
+    with caplog.at_level(logging.WARNING):
+        ddb.store_item(
+            TEST_TABLE_NAME,
+            {"pk": "pk2", "sk": "sk2", "bytearray_value": bytearray_data},
+        )
+
+    # Should be no warning messages
+    warning_messages = [
+        record.message for record in caplog.records if record.levelno >= logging.WARNING
+    ]
+    bytearray_warnings = [msg for msg in warning_messages if "serializable" in msg]
+    assert (
+        len(bytearray_warnings) == 0
+    ), f"Unexpected bytearray serialization warnings: {bytearray_warnings}"
+
+    # Verify the item was stored correctly
+    item = ddb.get_item_by_pk_sk(TEST_TABLE_NAME, "pk2", "sk2")
+    # DynamoDB emulator wraps binary data in BinaryPoemai objects
+    assert hasattr(
+        item["bytearray_value"], "value"
+    ), "Binary data should be wrapped in BinaryPoemai"
+    assert isinstance(
+        item["bytearray_value"].value, (bytes, bytearray)
+    ), "Binary value should be bytes or bytearray"
+    # bytearray may be preserved as bytearray
+    assert (
+        item["bytearray_value"].value == bytearray_data
+    ), "Bytearray data should match original"

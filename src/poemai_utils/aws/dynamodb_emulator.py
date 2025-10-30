@@ -13,6 +13,32 @@ from sqlitedict import SqliteDict
 
 _logger = logging.getLogger(__name__)
 
+
+def _make_json_serializable_for_testing(obj):
+    """
+    Recursively converts objects to JSON-serializable forms for DynamoDB emulator testing.
+    Handles DynamoDB-supported data types like Decimal and binary data.
+
+    This is intended for validation/testing, not for actual data storage.
+    """
+    import base64
+    from decimal import Decimal
+
+    if isinstance(obj, dict):
+        return {
+            key: _make_json_serializable_for_testing(value)
+            for key, value in obj.items()
+        }
+    elif isinstance(obj, list):
+        return [_make_json_serializable_for_testing(element) for element in obj]
+    elif isinstance(obj, Decimal):
+        return str(obj)  # Convert Decimal to string
+    elif isinstance(obj, (bytes, bytearray)):
+        return base64.b64encode(obj).decode("ascii")  # Convert binary to base64 string
+    else:
+        return obj
+
+
 # DynamoDB reserved keywords (case-insensitive)
 # Source: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/ReservedWords.html
 DYNAMODB_RESERVED_KEYWORDS = {
@@ -634,7 +660,7 @@ def validate_attribute_names(data, context="operation", allowed_keywords=None):
     if reserved_found:
         raise Exception(
             f"DynamoDB {context} contains reserved keyword(s): {reserved_found}. "
-            f"Use expression attribute names to work with reserved keywords. "
+            f"Use expression attribute names to work with reserved keywords. Pass allowed_reserved_keywords to the constructor to allow keywords explicitly, for testing. "
             f"See: https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Expressions.ExpressionAttributeNames.html"
         )
 
@@ -756,15 +782,20 @@ class DynamoDBEmulator:
 
             composite_key = self._get_composite_key(table_name, pk, sk)
 
-            # check if the item does not contain unserializeable daata
+            # check if the item does not contain unserializeable data
             assert isinstance(item, dict), f"Item must be a dict, got {type(item)}"
             try:
-                _ = json.dumps(item)
+                # Convert Decimals and binary data to JSON-serializable forms for testing
+                serializable_item = _make_json_serializable_for_testing(item)
+                _ = json.dumps(serializable_item)
             except Exception as e:
                 _logger.warning(
-                    f"Item {str(item)[:300]} is not serializable: {e}, continuing anyway, will probably crash later",
+                    f"Item {str(item)[:300]} is not serializable: {e}",
                     exc_info=True,
                 )
+                raise TypeError(
+                    f"Item contains unserializable data (e.g. MagicMock, arbitrary objects, ...). Error: {e}"
+                ) from e
 
             # Store previous version for eventual consistency simulation
             if composite_key in self.data_table:
