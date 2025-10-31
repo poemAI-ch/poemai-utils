@@ -379,13 +379,16 @@ class DynamoDB:
     def scan_for_items(
         self,
         table_name,
-        filter_expression,
-        expression_attribute_values,
+        filter_expression=None,
+        expression_attribute_values=None,
         projection_expression=None,
         expression_attribute_names=None,
+        index_name=None,
     ):
         paginator = self.dynamodb_client.get_paginator("scan")
         args = {"TableName": table_name}
+        if index_name is not None:
+            args["IndexName"] = index_name
         if filter_expression is not None:
             args["FilterExpression"] = filter_expression
         if expression_attribute_values is not None:
@@ -394,6 +397,7 @@ class DynamoDB:
             args["ProjectionExpression"] = projection_expression
         if expression_attribute_names is not None:
             args["ExpressionAttributeNames"] = expression_attribute_names
+
         page_iterator = paginator.paginate(**args)
 
         for page in page_iterator:

@@ -700,6 +700,9 @@ class DynamoDBEmulator:
             {}
         )  # tracks how many stale reads remain for each key
         self.previous_versions = {}  # stores previous versions of items
+        self.shadow_index = (
+            {}
+        )  # tracks deleted items still visible due to eventual consistency
         self.key_schema_by_table = {}
 
     def _get_composite_key(self, table_name, pk, sk):
@@ -1015,9 +1018,10 @@ class DynamoDBEmulator:
         return retval
 
     def batch_get_items_by_pk_sk(self, table_name, pk_sk_list):
-        _logger.info(
-            f"Batch get items by pk_sk list {pk_sk_list} from table {table_name}"
-        )
+        if self.log_access:
+            _logger.info(
+                f"Batch get items by pk_sk list {pk_sk_list} from table {table_name}"
+            )
 
         result_list = []
         for key_spec in pk_sk_list:
@@ -1026,11 +1030,15 @@ class DynamoDBEmulator:
             item_found = self.get_item_by_pk_sk(table_name, pk, sk)
             if item_found is not None:
                 result_list.append(item_found)
-                _logger.info(
-                    f"Found item {item_found} for key spec {key_spec}, pk={pk}, sk={sk}"
-                )
+                if self.log_access:
+                    _logger.info(
+                        f"Found item {item_found} for key spec {key_spec}, pk={pk}, sk={sk}"
+                    )
             else:
-                _logger.info(f"Item not found for key spec {key_spec} pk={pk}, sk={sk}")
+                if self.log_access:
+                    _logger.info(
+                        f"Item not found for key spec {key_spec} pk={pk}, sk={sk}"
+                    )
 
         return result_list
 
@@ -1074,7 +1082,7 @@ class DynamoDBEmulator:
         """
         if self.log_access:
             _logger.info(
-                f"Getting paginated items by sk:{sk} from table {table_name} using index {index_name} with limit {limit}"
+                f"Getting get_paginated_items_by_sk sk:{sk} from table {table_name} using index {index_name} with limit {limit}"
             )
         for item in self.get_paginated_items(
             table_name=table_name,
@@ -1090,30 +1098,96 @@ class DynamoDBEmulator:
     ):
         if self.log_access:
             _logger.info(
-                f"Getting paginated items by pk:{pk} from table {table_name} with limit {limit} and projection_expression {projection_expression}"
+                f"get_paginated_items_by_pk pk:{pk} from table {table_name} with limit {limit} and projection_expression {projection_expression}"
             )
         results = []
         index_key = self._get_index_key(table_name, pk)
-        composite_keys = set(self.index_table.get(index_key, []))
-        for composite_key in sorted(composite_keys):
-            item_serialized = self.data_table.get(composite_key, None)
-            if item_serialized is None:
-                item = None
-            else:
-                item = DynamoDB.ddb_type_deserializer.deserialize(item_serialized)
 
-            if item:
-                pk, sk = self._get_pk_sk_from_composite_key(composite_key)
-                new_item = copy.deepcopy(item)
-                new_item["pk"] = pk
-                new_item["sk"] = sk
-                if projection_expression:
-                    new_item = {
-                        k: v
-                        for k, v in new_item.items()
-                        if k in projection_expression.split(",")
-                    }
-                results.append(new_item)
+        # Get composite keys from both regular index and shadow index (for eventual consistency)
+        regular_keys = set(self.index_table.get(index_key, []))
+        shadow_keys = set(self.shadow_index.get(index_key, []))
+        all_composite_keys = regular_keys.union(shadow_keys)
+
+        pk_key, sk_key = self._get_key_names(table_name)
+
+        # Track keys to remove from shadow index after eventual consistency expires
+        shadow_keys_to_remove = []
+
+        for composite_key in sorted(all_composite_keys):
+            current_pk, current_sk = self._get_pk_sk_from_composite_key(composite_key)
+
+            # Check if this read should return stale data due to eventual consistency
+            with self.lock:
+                if (
+                    composite_key in self.stale_reads_remaining
+                    and self.stale_reads_remaining[composite_key] > 0
+                ):
+                    self.stale_reads_remaining[composite_key] -= 1
+                    stale_data = self.previous_versions.get(composite_key)
+                    _logger.debug(
+                        f"Returning stale data for {composite_key} in paginated query, {self.stale_reads_remaining[composite_key]} stale reads remaining"
+                    )
+
+                    # If this was the last stale read, mark for shadow index cleanup
+                    if self.stale_reads_remaining[composite_key] == 0:
+                        shadow_keys_to_remove.append(composite_key)
+                        # Clean up stale reads tracking
+                        del self.stale_reads_remaining[composite_key]
+                        if composite_key in self.previous_versions:
+                            del self.previous_versions[composite_key]
+
+                    if stale_data is not None:
+                        item = DynamoDB.ddb_type_deserializer.deserialize(stale_data)
+                        if item:
+                            new_item = copy.deepcopy(item)
+                            new_item[pk_key] = current_pk
+                            new_item[sk_key] = current_sk
+                            if projection_expression:
+                                new_item = {
+                                    k: v
+                                    for k, v in new_item.items()
+                                    if k in projection_expression.split(",")
+                                }
+                            results.append(new_item)
+                    # If stale_data is None, skip this item (simulates item not found due to eventual consistency)
+                    continue
+
+            # Return current data if no stale read simulation
+            item_serialized = self.data_table.get(composite_key, None)
+            if item_serialized is not None:
+                # Item exists in data table - return it normally
+                item = DynamoDB.ddb_type_deserializer.deserialize(item_serialized)
+                if item:
+                    new_item = copy.deepcopy(item)
+                    new_item[pk_key] = current_pk
+                    new_item[sk_key] = current_sk
+                    if projection_expression:
+                        new_item = {
+                            k: v
+                            for k, v in new_item.items()
+                            if k in projection_expression.split(",")
+                        }
+                    results.append(new_item)
+            # If item doesn't exist in data table but is in shadow index,
+            # it means it's been deleted and eventual consistency has expired - skip it
+
+        # Clean up shadow index entries for items that no longer need to be tracked
+        if shadow_keys_to_remove:
+            with self.lock:
+                shadow_set = self.shadow_index.get(index_key, set())
+                for key_to_remove in shadow_keys_to_remove:
+                    if key_to_remove in shadow_set:
+                        shadow_set.remove(key_to_remove)
+                        _logger.debug(
+                            f"Removed {key_to_remove} from shadow index after eventual consistency expired"
+                        )
+
+                # Clean up empty shadow index entries
+                if not shadow_set:
+                    if index_key in self.shadow_index:
+                        del self.shadow_index[index_key]
+                else:
+                    self.shadow_index[index_key] = shadow_set
 
         return results
 
@@ -1122,15 +1196,51 @@ class DynamoDBEmulator:
             _logger.info(f"Deleting item from table {table_name} with pk:{pk}, sk:{sk}")
         composite_key = self._get_composite_key(table_name, pk, sk)
 
-        # Delete the item
-        del self.data_table[composite_key]
+        with self.lock:
+            # Store the item as a previous version for eventual consistency simulation
+            if composite_key in self.data_table:
+                self.previous_versions[composite_key] = self.data_table[composite_key]
 
-        # Delete the index
-        index_key = self._get_index_key(table_name, pk)
-        index_list = self.index_table.get(index_key, [])
-        index_list.remove(composite_key)
-        self.index_table[index_key] = index_list
-        self._commit()
+            # Check if this delete should have eventual consistency simulation
+            if self._should_simulate_eventual_consistency(table_name, pk, sk):
+                _logger.debug(
+                    f"Simulating eventual consistency for delete operation on {pk}:{sk}"
+                )
+                # Configure how many stale reads should still return the deleted item
+                delay_reads = self.eventual_consistency_config.get("delay_reads", 2)
+                self.stale_reads_remaining[composite_key] = delay_reads
+                _logger.debug(
+                    f"Configured {delay_reads} stale reads for deleted item {composite_key}"
+                )
+
+                # Add to shadow index to track this deleted item
+                index_key = self._get_index_key(table_name, pk)
+                if index_key not in self.shadow_index:
+                    self.shadow_index[index_key] = set()
+                self.shadow_index[index_key].add(composite_key)
+                _logger.debug(
+                    f"Added {composite_key} to shadow index for eventual consistency"
+                )
+            else:
+                _logger.debug(
+                    f"No eventual consistency simulation for delete operation on {pk}:{sk}"
+                )
+
+            # Delete the item from data table and regular index
+            # note: dynamdb delete is idempotent, so no error if item does not exist
+            if composite_key in self.data_table:
+                del self.data_table[composite_key]
+                # Delete from the regular index
+                index_key = self._get_index_key(table_name, pk)
+                index_list = self.index_table.get(index_key, [])
+                if composite_key in index_list:
+                    index_list.remove(composite_key)
+                    self.index_table[index_key] = index_list
+                self._commit()
+            else:
+                _logger.debug(
+                    f"Item with composite key {composite_key} does not exist, nothing to delete - but delete is idempotent in DynamoDB anyway"
+                )
 
     def scan_for_items_by_pk_sk(self, table_name, pk_contains, sk_contains):
         raise NotImplementedError("scan_for_items_by_pk_sk not implemented")
@@ -1472,3 +1582,6 @@ class DynamoDBEmulator:
         # reset stale data so that latest data is returned
         _logger.info(f"Making all reads consistent by resetting stale read counters")
         self.stale_reads_remaining = {k: 0 for k in self.stale_reads_remaining.keys()}
+        # Clear shadow index as well since all reads should now be consistent
+        self.shadow_index = {}
+        self.previous_versions = {}

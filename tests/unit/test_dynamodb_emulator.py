@@ -1274,3 +1274,16 @@ def test_binary_data_serialization_no_warning(caplog):
     assert (
         item["bytearray_value"].value == bytearray_data
     ), "Bytearray data should match original"
+
+
+def test_delete_inexistent_item_doesn_t_throw():
+    """Test that deleting a non-existent item does not throw an error."""
+
+    ddb = DynamoDBEmulator(None)
+    TEST_TABLE_NAME = "test_table"
+
+    # Attempt to delete a non-existent item
+    try:
+        ddb.delete_item_by_pk_sk(TEST_TABLE_NAME, "nonexistent_pk", "nonexistent_sk")
+    except Exception as e:
+        pytest.fail(f"Deleting a non-existent item raised an exception: {e}")
