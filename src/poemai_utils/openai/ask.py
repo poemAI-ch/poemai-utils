@@ -665,7 +665,8 @@ class AsyncOpenai:
                                 if len(chunk["choices"]) > 0:
                                     delta = chunk["choices"][0].get("delta", {})
                                     if delta:
-                                        full_text += delta.get("content", "")
+                                        content = delta.get("content") or ""
+                                        full_text += content
                                         yield delta
                             if (
                                 chunk.get("usage") is not None
