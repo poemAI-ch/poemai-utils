@@ -73,5 +73,28 @@ class OpenAIEmbedder(EmbedderBase):
         embedding = np.array(embedding, dtype=np.float32)
         return embedding
 
+    def calc_embedding_batch(self, texts, is_query: bool = False):
+        """
+        Generate embeddings for a batch of texts in a single API call.
+
+        Args:
+            texts (list): List of text strings to embed
+            is_query (bool): Whether this is a query embedding (unused in OpenAI)
+
+        Returns:
+            list: List of numpy arrays, one embedding per input text
+        """
+        if not texts:
+            return []
+
+        response = self.client.embeddings.create(input=texts, model=self.model_name)
+        embeddings = []
+
+        for item in response.data:
+            embedding = np.array(item.embedding, dtype=np.float32)
+            embeddings.append(embedding)
+
+        return embeddings
+
     def embedding_dim(self):
         return self.embeddings_dimensions

@@ -134,5 +134,49 @@ class OpenAIEmbedderLean(EmbedderBase):
 
         return embedding
 
+    def calc_embedding_batch(self, texts, is_query: bool = False):
+        """
+        Generate embeddings for a batch of texts in a single API call.
+
+        Args:
+            texts (list): List of text strings to embed
+            is_query (bool): Whether this is a query embedding (unused in OpenAI)
+
+        Returns:
+            list: List of numpy arrays, one embedding per input text
+        """
+        if not texts:
+            return []
+
+        # API endpoint for creating embeddings
+        url = f"{self.base_url}/embeddings"
+
+        # Headers for OpenAI API request
+        headers = {
+            "Authorization": f"Bearer {self.openai_api_key}",
+            "Content-Type": "application/json",
+        }
+
+        # Payload for the embeddings request with batch input
+        data = {"input": texts, "model": self.model_key}
+
+        # Perform the request
+        response = requests.post(url, headers=headers, json=data)
+
+        # Check for request errors
+        if response.status_code != 200:
+            _logger.error(f"Failed to retrieve batch embeddings: {response.text}")
+            raise RuntimeError(f"Failed to retrieve embedding: {response.status_code}")
+
+        # Parse the response JSON
+        response_data = response.json()
+        embeddings = []
+
+        for item in response_data["data"]:
+            embedding = np.array(item["embedding"], dtype=np.float32)
+            embeddings.append(embedding)
+
+        return embeddings
+
     def embedding_dim(self):
         return self.embeddings_dimensions
