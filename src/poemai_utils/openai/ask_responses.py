@@ -136,6 +136,7 @@ class AskResponses:
         temperature: float = 0,
         max_tokens: Optional[int] = None,
         max_output_tokens: Optional[int] = None,
+        poemai_max_tokens: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
@@ -159,8 +160,9 @@ class AskResponses:
             instructions: System instructions for the model (replaces system messages)
             model: Model to use (overrides instance default)
             temperature: Sampling temperature (0-2)
-            max_tokens: IGNORED - The Responses API does not support max_tokens parameter
-            max_output_tokens: Limit on response tokens for Responses API
+            max_tokens: DEPRECATED - Use poemai_max_tokens instead
+            max_output_tokens: Direct max_output_tokens for Responses API (use poemai_max_tokens for auto-mapping)
+            poemai_max_tokens: Platform-agnostic token limit (auto-maps to max_output_tokens for Responses API)
             stop: Stop sequences
             tools: Available tools/functions
             tool_choice: Tool choice strategy
@@ -221,9 +223,22 @@ class AskResponses:
                 use_model,
             )
 
+        # Handle poemai_max_tokens - platform-agnostic token limiting
+        # For Responses API, map to max_output_tokens
+        if poemai_max_tokens is not None:
+            if max_output_tokens is not None:
+                _logger.warning(
+                    "Both poemai_max_tokens and max_output_tokens specified; using max_output_tokens"
+                )
+            else:
+                max_output_tokens = poemai_max_tokens
+                _logger.debug(
+                    f"Mapping poemai_max_tokens={poemai_max_tokens} to max_output_tokens for Responses API"
+                )
+
         if max_tokens is not None:
             _logger.warning(
-                "The Responses API does not support max_tokens parameter; ignoring it. Use max_output_tokens instead."
+                "The Responses API does not support max_tokens parameter; ignoring it. Use poemai_max_tokens instead."
             )
 
         if parallel_tool_calls is not None:
@@ -680,8 +695,16 @@ class AskResponses:
                 if isinstance(text_value, str):
                     chunks.append(text_value)
 
-        if chunks:
-            response_json["output_text"] = "".join(chunks)
+        # Set output_text field if we found content
+        # Always set it to prevent BoxKeyError, but empty string allows
+        # compatibility code to detect "no real output" case
+        output_text = "".join(chunks)
+        response_json["output_text"] = output_text
+
+        if not output_text and outputs:
+            _logger.warning(
+                f"No text content found in response with output blocks. Response structure: {json.dumps(response_json, indent=2)}"
+            )
 
 
 # Backward compatibility alias

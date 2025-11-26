@@ -11,6 +11,7 @@ _logger = logging.getLogger(__name__)
 
 
 MODEL_CANDIDATES = [
+    "gpt-4o-mini",  # More reliable for testing
     "gpt-5",
 ]
 
@@ -556,11 +557,13 @@ def test_openai_responses_max_output_tokens(api_key: str):
             max_output_tokens,
         )
         start = time.perf_counter()
+        # Disable reasoning for gpt-5 to ensure tokens go to output, not reasoning
         response = ask.ask(
             input=prompt,
             instructions="Keep the poem concise and respectful of the token limit.",
             max_output_tokens=max_output_tokens,
             temperature=0.2,
+            reasoning={"effort": "none"} if "gpt-5" in model else None,
         )
         duration = time.perf_counter() - start
 
@@ -878,3 +881,132 @@ def test_openai_responses_api_documented_flow(api_key: str):
     _logger.info(
         f"Message log:\n{json.dumps(message_log, indent=2, ensure_ascii=False)}"
     )
+
+
+@pytest.mark.integration
+@pytest.mark.external
+def test_poemai_max_tokens_enforcement(api_key: str):
+    """
+    Integration test verifying that poemai_max_tokens correctly limits output
+    across the Responses API.
+    """
+
+    def _runner(ask: AskResponses, model: str) -> None:
+        # Create a prompt that would naturally generate a long response
+        prompt = """Please write a comprehensive guide about the following topics:
+1. The history of artificial intelligence from 1950 to 2024
+2. Key breakthroughs in machine learning
+3. The impact of large language models
+4. Future predictions for AI development
+5. Ethical considerations in AI
+
+Include detailed explanations, examples, and references for each topic."""
+
+        _logger.info(f"Testing poemai_max_tokens with model {model}")
+
+        # Call with poemai_max_tokens=150 (very restrictive)
+        # Disable reasoning for gpt-5 to ensure tokens go to output, not reasoning
+        response = ask.ask(
+            input=prompt,
+            poemai_max_tokens=150,
+            temperature=0,
+            reasoning={"effort": "none"} if "gpt-5" in model else None,
+        )
+
+        # Log full response for debugging
+        _logger.info(f"Full response: {response}")
+
+        output_text = getattr(response, "output_text", "")
+        _logger.info(f"Response length: {len(output_text)} characters")
+        if output_text:
+            _logger.info(f"Response preview: {output_text[:200]}...")
+
+        # Verify response is limited
+        assert (
+            len(output_text) > 0
+        ), f"Response should not be empty. Full response: {response}"
+        assert (
+            len(output_text) < 1200
+        ), f"Response should be limited by poemai_max_tokens=150, but got {len(output_text)} chars"
+
+        # Verify token usage
+        usage = getattr(response, "usage", None)
+        if usage:
+            output_tokens = usage.get("output_tokens", 0)
+            _logger.info(f"Actual output tokens: {output_tokens}")
+            assert (
+                output_tokens <= 160
+            ), f"Output tokens {output_tokens} exceeded limit of 150 (allowing small buffer)"
+
+        _logger.info("✅ poemai_max_tokens enforcement verified")
+
+    _execute_with_models(MODEL_CANDIDATES, _runner, api_key)
+
+
+@pytest.mark.integration
+@pytest.mark.external
+def test_poemai_max_tokens_vs_max_output_tokens(api_key: str):
+    """
+    Integration test comparing poemai_max_tokens with max_output_tokens
+    to verify they work the same way.
+    """
+
+    def _runner(ask: AskResponses, model: str) -> None:
+        prompt = "Write a brief summary of quantum computing, including its principles, applications, and challenges."
+
+        # Test 1: Using poemai_max_tokens
+        _logger.info(f"Test 1: Using poemai_max_tokens=100 with model {model}")
+        # Disable reasoning for gpt-5 to ensure tokens go to output
+        response1 = ask.ask(
+            input=prompt,
+            poemai_max_tokens=100,
+            temperature=0,
+            reasoning={"effort": "none"} if "gpt-5" in model else None,
+        )
+
+        output_text1 = getattr(response1, "output_text", "")
+        length1 = len(output_text1)
+        tokens1 = (
+            response1.usage.get("output_tokens", 0)
+            if hasattr(response1, "usage")
+            else 0
+        )
+        _logger.info(f"poemai_max_tokens result: {length1} chars, {tokens1} tokens")
+        _logger.info(f"Response1: {response1}")
+
+        # Test 2: Using max_output_tokens directly
+        _logger.info(f"Test 2: Using max_output_tokens=100 with model {model}")
+        # Disable reasoning for gpt-5 to ensure tokens go to output
+        response2 = ask.ask(
+            input=prompt,
+            max_output_tokens=100,
+            temperature=0,
+            reasoning={"effort": "none"} if "gpt-5" in model else None,
+        )
+
+        output_text2 = getattr(response2, "output_text", "")
+        length2 = len(output_text2)
+        tokens2 = (
+            response2.usage.get("output_tokens", 0)
+            if hasattr(response2, "usage")
+            else 0
+        )
+        _logger.info(f"max_output_tokens result: {length2} chars, {tokens2} tokens")
+        _logger.info(f"Response2: {response2}")
+
+        # Both should produce similar results (within reasonable variance)
+        assert (
+            abs(tokens1 - tokens2) <= 10
+        ), f"Token counts should be similar: poemai_max_tokens={tokens1}, max_output_tokens={tokens2}"
+
+        # Both should respect the 100 token limit
+        assert (
+            tokens1 <= 110
+        ), f"poemai_max_tokens produced {tokens1} tokens (expected ≤110)"
+        assert (
+            tokens2 <= 110
+        ), f"max_output_tokens produced {tokens2} tokens (expected ≤110)"
+
+        _logger.info("✅ poemai_max_tokens and max_output_tokens behave consistently")
+
+    _execute_with_models(MODEL_CANDIDATES, _runner, api_key)

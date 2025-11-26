@@ -554,6 +554,117 @@ class TestAskResponses(unittest.TestCase):
         self.assertEqual(instance.openai_api_key, "test-key")
         self.assertEqual(instance.model, "gpt-4o")
 
+    @patch("poemai_utils.openai.ask_responses.requests.post")
+    def test_poemai_max_tokens_maps_to_max_output_tokens(self, mock_post):
+        """Test that poemai_max_tokens maps to max_output_tokens for Responses API."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "resp_123",
+            "object": "response",
+            "model": "gpt-4o-mini",
+            "output_text": "Test response",
+            "usage": {"input_tokens": 10, "output_tokens": 15, "total_tokens": 25},
+        }
+        mock_post.return_value = mock_response
+
+        # Call with poemai_max_tokens
+        response = self.ask_responses.ask(
+            input="Test prompt", poemai_max_tokens=200, temperature=0
+        )
+
+        # Verify request was made correctly
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        request_data = json.loads(kwargs["data"])
+
+        # Verify poemai_max_tokens was mapped to max_output_tokens
+        self.assertEqual(request_data["max_output_tokens"], 200)
+        self.assertNotIn("max_tokens", request_data)
+        self.assertNotIn("poemai_max_tokens", request_data)
+
+        # Verify response
+        self.assertEqual(response.output_text, "Test response")
+
+    @patch("poemai_utils.openai.ask_responses.requests.post")
+    def test_max_output_tokens_takes_precedence_over_poemai_max_tokens(self, mock_post):
+        """Test that max_output_tokens takes precedence when both are specified."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "resp_123",
+            "object": "response",
+            "model": "gpt-4o-mini",
+            "output_text": "Test response",
+            "usage": {"input_tokens": 10, "output_tokens": 15, "total_tokens": 25},
+        }
+        mock_post.return_value = mock_response
+
+        # Call with both poemai_max_tokens and max_output_tokens
+        with self.assertLogs(
+            "poemai_utils.openai.ask_responses", level="WARNING"
+        ) as log:
+            response = self.ask_responses.ask(
+                input="Test prompt",
+                poemai_max_tokens=200,
+                max_output_tokens=300,
+                temperature=0,
+            )
+
+        # Verify warning was logged
+        self.assertTrue(
+            any(
+                "Both poemai_max_tokens and max_output_tokens specified" in msg
+                for msg in log.output
+            )
+        )
+
+        # Verify max_output_tokens was used (not poemai_max_tokens)
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        request_data = json.loads(kwargs["data"])
+        self.assertEqual(request_data["max_output_tokens"], 300)
+
+    @patch("poemai_utils.openai.ask_responses.requests.post")
+    def test_deprecated_max_tokens_warning(self, mock_post):
+        """Test that deprecated max_tokens parameter shows warning."""
+        mock_response = Mock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "id": "resp_123",
+            "object": "response",
+            "model": "gpt-4o-mini",
+            "output_text": "Test response",
+            "usage": {"input_tokens": 10, "output_tokens": 15, "total_tokens": 25},
+        }
+        mock_post.return_value = mock_response
+
+        # Call with deprecated max_tokens parameter
+        with self.assertLogs(
+            "poemai_utils.openai.ask_responses", level="WARNING"
+        ) as log:
+            response = self.ask_responses.ask(
+                input="Test prompt", max_tokens=200, temperature=0
+            )
+
+        # Verify warning was logged
+        self.assertTrue(
+            any(
+                "does not support max_tokens parameter" in msg
+                and "poemai_max_tokens" in msg
+                for msg in log.output
+            )
+        )
+
+        # Verify max_tokens was NOT sent to API (it's ignored)
+        mock_post.assert_called_once()
+        args, kwargs = mock_post.call_args
+        request_data = json.loads(kwargs["data"])
+        self.assertNotIn("max_tokens", request_data)
+        self.assertNotIn(
+            "max_output_tokens", request_data
+        )  # Not set because max_tokens is deprecated
+
 
 if __name__ == "__main__":
     unittest.main()

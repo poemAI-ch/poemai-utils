@@ -161,3 +161,78 @@ def test_ask_with_response_format(ask_lean_client):
         data_sent = json.loads(kwargs["data"])
         assert "response_format" in data_sent
         assert data_sent["response_format"] == response_format
+
+
+def test_poemai_max_tokens_maps_to_max_tokens(ask_lean_client):
+    """Test that poemai_max_tokens maps to max_tokens for Chat Completions API."""
+    messages = [{"role": "user", "content": "Hello"}]
+    mock_response = {
+        "id": "123",
+        "object": "chat.completion",
+        "choices": [{"message": {"content": "Hi!"}}],
+        "usage": {"prompt_tokens": 5, "completion_tokens": 10, "total_tokens": 15},
+    }
+
+    with patch("requests.post") as mock_post:
+        mock_requests_response = MagicMock()
+        mock_requests_response.status_code = 200
+        mock_requests_response.json.return_value = mock_response
+        mock_post.return_value = mock_requests_response
+
+        response = ask_lean_client.ask(messages=messages, poemai_max_tokens=200)
+
+        # Verify poemai_max_tokens was mapped to max_tokens
+        args, kwargs = mock_post.call_args
+        data_sent = json.loads(kwargs["data"])
+        assert data_sent["max_tokens"] == 200
+        assert "poemai_max_tokens" not in data_sent
+
+
+def test_max_tokens_takes_precedence_over_poemai_max_tokens(ask_lean_client):
+    """Test that max_tokens takes precedence when both are specified."""
+    messages = [{"role": "user", "content": "Hello"}]
+    mock_response = {
+        "id": "123",
+        "object": "chat.completion",
+        "choices": [{"message": {"content": "Hi!"}}],
+    }
+
+    with patch("requests.post") as mock_post:
+        mock_requests_response = MagicMock()
+        mock_requests_response.status_code = 200
+        mock_requests_response.json.return_value = mock_response
+        mock_post.return_value = mock_requests_response
+
+        # Call with both parameters - max_tokens should win
+        response = ask_lean_client.ask(
+            messages=messages, max_tokens=300, poemai_max_tokens=200
+        )
+
+        # Verify max_tokens was used (not poemai_max_tokens)
+        args, kwargs = mock_post.call_args
+        data_sent = json.loads(kwargs["data"])
+        assert data_sent["max_tokens"] == 300
+
+
+def test_poemai_max_tokens_with_default_max_tokens(ask_lean_client):
+    """Test that poemai_max_tokens works when max_tokens is at default value."""
+    messages = [{"role": "user", "content": "Hello"}]
+    mock_response = {
+        "id": "123",
+        "object": "chat.completion",
+        "choices": [{"message": {"content": "Hi!"}}],
+    }
+
+    with patch("requests.post") as mock_post:
+        mock_requests_response = MagicMock()
+        mock_requests_response.status_code = 200
+        mock_requests_response.json.return_value = mock_response
+        mock_post.return_value = mock_requests_response
+
+        # Call with poemai_max_tokens (max_tokens will be default 600)
+        response = ask_lean_client.ask(messages=messages, poemai_max_tokens=250)
+
+        # Verify poemai_max_tokens was used
+        args, kwargs = mock_post.call_args
+        data_sent = json.loads(kwargs["data"])
+        assert data_sent["max_tokens"] == 250

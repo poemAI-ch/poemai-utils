@@ -115,6 +115,7 @@ class Ask:
         prompt,
         temperature=0,
         max_tokens=100,
+        poemai_max_tokens=None,
         stop=None,
         suffix=None,
         system_prompt=None,
@@ -157,12 +158,25 @@ class Ask:
             args.update(additional_args)
 
         try:
-
-            if max_tokens is not None:
-                if self.model.requires_max_completion_tokens:
-                    args["max_completion_tokens"] = max_tokens
+            # Handle poemai_max_tokens - platform-agnostic token limiting
+            # For Chat Completions, map to max_tokens or max_completion_tokens based on model
+            effective_max_tokens = max_tokens
+            if poemai_max_tokens is not None:
+                if max_tokens is not None and max_tokens != 100:  # 100 is default
+                    _logger.warning(
+                        "Both poemai_max_tokens and max_tokens specified; using max_tokens"
+                    )
                 else:
-                    args["max_tokens"] = max_tokens
+                    effective_max_tokens = poemai_max_tokens
+                    _logger.debug(
+                        f"Mapping poemai_max_tokens={poemai_max_tokens} to Chat Completions token parameter"
+                    )
+
+            if effective_max_tokens is not None:
+                if self.model.requires_max_completion_tokens:
+                    args["max_completion_tokens"] = effective_max_tokens
+                else:
+                    args["max_tokens"] = effective_max_tokens
 
             _logger.debug(
                 f"Calling chat completions with model {self.model}, messages: {message_list}, temperature: {temperature}, args: {args}"
@@ -231,6 +245,7 @@ class Ask:
         prompt,
         temperature=0,
         max_tokens=600,
+        poemai_max_tokens=None,
         stop=None,
         suffix=None,
         system_prompt=None,
@@ -296,6 +311,7 @@ class Ask:
                         prompt,
                         temperature=None,  # Don't pass temperature
                         max_tokens=max_tokens,
+                        poemai_max_tokens=poemai_max_tokens,
                         stop=stop,
                         suffix=suffix,
                         system_prompt=system_prompt,
@@ -309,6 +325,7 @@ class Ask:
                         prompt,
                         temperature,
                         max_tokens,
+                        poemai_max_tokens,
                         stop,
                         suffix,
                         system_prompt,

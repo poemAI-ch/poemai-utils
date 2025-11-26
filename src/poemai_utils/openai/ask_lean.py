@@ -42,6 +42,7 @@ class AskLean:
         model=None,
         temperature=0,
         max_tokens=600,
+        poemai_max_tokens=None,
         stop=None,
         tools=None,
         tool_choice=None,
@@ -58,8 +59,22 @@ class AskLean:
 
         data = {"model": use_model, "messages": messages, "temperature": temperature}
 
-        if max_tokens is not None:
-            data["max_tokens"] = max_tokens
+        # Handle poemai_max_tokens - platform-agnostic token limiting
+        # For Chat Completions (local or OpenAI), map to max_tokens
+        effective_max_tokens = max_tokens
+        if poemai_max_tokens is not None:
+            if max_tokens is not None and max_tokens != 600:  # 600 is default
+                _logger.warning(
+                    "Both poemai_max_tokens and max_tokens specified; using max_tokens"
+                )
+            else:
+                effective_max_tokens = poemai_max_tokens
+                _logger.debug(
+                    f"Mapping poemai_max_tokens={poemai_max_tokens} to max_tokens for Chat Completions"
+                )
+
+        if effective_max_tokens is not None:
+            data["max_tokens"] = effective_max_tokens
 
         if stop is not None:
             data["stop"] = stop
@@ -144,6 +159,7 @@ class AskLean:
         model: Optional[str] = None,
         temperature: float = 0,
         max_tokens: Optional[int] = 600,
+        poemai_max_tokens: Optional[int] = None,
         stop: Optional[Union[str, List[str]]] = None,
         tools: Optional[List[Dict[str, Any]]] = None,
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
@@ -160,7 +176,8 @@ class AskLean:
             messages: List of message dictionaries with 'role' and 'content'
             model: Model to use (overrides instance default)
             temperature: Sampling temperature
-            max_tokens: Maximum tokens to generate
+            max_tokens: Maximum tokens to generate (deprecated, use poemai_max_tokens)
+            poemai_max_tokens: Platform-agnostic token limit (auto-maps to max_output_tokens)
             stop: Stop sequences
             tools: Available tools/functions
             tool_choice: Tool choice strategy
@@ -184,6 +201,7 @@ class AskLean:
             model=model,
             temperature=temperature,
             max_tokens=max_tokens,
+            poemai_max_tokens=poemai_max_tokens,
             stop=stop,
             tools=tools,
             tool_choice=tool_choice,
@@ -192,7 +210,8 @@ class AskLean:
         )
 
         # Convert response back to Chat Completions format for compatibility
-        if hasattr(response, "output_text"):
+        # Only do this if response has output_text with actual content
+        if hasattr(response, "output_text") and response.output_text:
             # Create a compatible response structure
             compatible_response = {
                 "choices": [
