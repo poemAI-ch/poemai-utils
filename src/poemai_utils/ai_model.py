@@ -6,6 +6,7 @@ from poemai_utils.enum_utils import add_enum_repr
 class AIApiType(Enum):
     COMPLETIONS = "completions"
     CHAT_COMPLETIONS = "chat_completions"
+    RESPONSES = "responses"
     EMBEDDINGS = "embeddings"
     MODERATIONS = "moderations"
 

@@ -184,9 +184,11 @@ class AskResponses:
             "Authorization": f"Bearer {self.openai_api_key}",
         }
 
-        _logger.info(f"input is of type {type(input)}")
         if not isinstance(input, (str, list)):
-            raise ValueError("Input must be a string or a list of message dicts")
+            input_type = type(input).__name__
+            raise ValueError(
+                f"Input must be a string or a list of message dicts, got {input_type}"
+            )
 
         if isinstance(input, list):
             if not all(isinstance(msg, Mapping) for msg in input):

@@ -40,6 +40,9 @@ class OPENAI_MODEL(str, Enum):
     GPT_5_NANO_2025_08_07 = "gpt-5-nano-2025-08-07"
     GPT_5_CHAT_LATEST = "gpt-5-chat-latest"
     GPT_5_2025_08_07 = "gpt-5-2025-08-07"
+    GPT_5_2_2025_12_11 = "gpt-5.2-2025-12-11"
+    GPT_5_2_CHAT_LATEST = "gpt-5.2-chat-latest"
+    GPT_5_2 = "gpt-5.2"
 
     @classmethod
     def by_model_key(cls, model_key):
@@ -406,6 +409,36 @@ add_enum_attrs(
         OPENAI_MODEL.GPT_5_2025_08_07: {
             "model_key": "gpt-5-2025-08-07",
             "api_types": [AIApiType.CHAT_COMPLETIONS],
+            "expensive": True,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+            "supports_reasoning": True,
+        },
+        OPENAI_MODEL.GPT_5_2_2025_12_11: {
+            "model_key": "gpt-5.2-2025-12-11",
+            "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
+            "expensive": True,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+            "supports_reasoning": True,
+        },
+        OPENAI_MODEL.GPT_5_2_CHAT_LATEST: {
+            "model_key": "gpt-5.2-chat-latest",
+            "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
+            "expensive": True,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+            "supports_reasoning": True,
+        },
+        OPENAI_MODEL.GPT_5_2: {
+            "model_key": "gpt-5.2",
+            "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
             "expensive": True,
             "supports_vision": True,
             "embeddings_dimensions": None,

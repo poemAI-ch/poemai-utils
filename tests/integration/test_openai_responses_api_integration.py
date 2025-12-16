@@ -6,18 +6,14 @@ from typing import Callable, Iterable, Optional
 
 import pytest
 from poemai_utils.openai.ask_responses import AskResponses
+from regex import D
 
 _logger = logging.getLogger(__name__)
 
 
-MODEL_CANDIDATES = [
-    "gpt-4o-mini",  # More reliable for testing
-    "gpt-5",
-]
+MODEL_CANDIDATES = ["gpt-4o-mini", "gpt-5", "gpt-5.2"]  # More reliable for testing
 
-REASONING_MODEL_CANDIDATES = [
-    "gpt-5",
-]
+REASONING_MODEL_CANDIDATES = ["gpt-5", "gpt-5.2"]
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -1010,3 +1006,35 @@ def test_poemai_max_tokens_vs_max_output_tokens(api_key: str):
         _logger.info("✅ poemai_max_tokens and max_output_tokens behave consistently")
 
     _execute_with_models(MODEL_CANDIDATES, _runner, api_key)
+
+
+@pytest.mark.integration
+@pytest.mark.external
+def test_openai_gpt_5_2(api_key: str):
+
+    models = [
+        AskResponses.OPENAI_MODEL.GPT_5_2_2025_12_11,
+        AskResponses.OPENAI_MODEL.GPT_5_2_CHAT_LATEST,
+        AskResponses.OPENAI_MODEL.GPT_5_2,
+    ]
+
+    for model in models:
+        _logger.info(f"Testing GPT-5.2 model: {model}")
+
+        ask = AskResponses(openai_api_key=api_key, model=model)
+
+        start_time = time.time()
+        response = ask.ask(
+            input="Explain the significance of the Turing Test in AI development.",
+        )
+
+        duration_ms = int((time.time() - start_time) * 1000)
+        output_text = getattr(response, "output_text", "").strip()
+        _logger.info(
+            f"Model {model} response in ({duration_ms} ms): \n------\n{output_text}\n---- END MODEL OUTPUT ",
+        )
+
+        assert output_text, "Expected non-empty output from GPT-5.2 model"
+        assert (
+            "Turing Test" in output_text
+        ), f"Expected response to mention 'Turing Test', got: {output_text}"
