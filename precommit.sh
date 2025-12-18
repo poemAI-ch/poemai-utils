@@ -11,6 +11,15 @@ if [ $? -ne 0 ]; then
 fi
 echo "✅ No unused imports found."
 
+flake8 --select=F401 --exclude="src/*/simple.py" --exclude "build/*" --exclude "lambda_runtimes/*" tests/
+if [ $? -ne 0 ]; then
+    echo "WARNING: Found unused imports in tests! Please remove them before committing."
+else
+    echo "✅ No unused imports found in tests."
+fi
+
+
+
 npx prettier --write  .github/workflows/*.yml
 remote_branch=$(git rev-parse --abbrev-ref --symbolic-full-name @{u})
 

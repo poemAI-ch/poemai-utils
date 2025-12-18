@@ -688,3 +688,54 @@ def test_paginated_items_starting_at_pk_sk_sorting(ddb: DynamoDB):
             for j, item in enumerate(paginated_items_list):
                 assert item["pk"] == pk
                 assert item["sk"] == keys_list[i + j][1]
+
+
+def test_query_sort_key_pagination(ddb: DynamoDB):
+    corpus_key = f"pagination_{uuid.uuid4().hex}"
+    raw_content_ids = [
+        "rci_0001",
+        "rci_0002",
+        "rci_0003",
+        "rci_0004",
+    ]
+
+    items_to_store = [
+        {"pk": corpus_key, "sk": raw_content_id, "raw_content_id": raw_content_id}
+        for raw_content_id in raw_content_ids
+    ]
+
+    for item in items_to_store:
+        ddb.store_item(TEST_TABLE_NAME, item)
+
+    try:
+
+        def fetch_page(after_sk=None, limit=2):
+            key_condition_expression = "pk = :pk"
+            expression_attribute_values = {":pk": {"S": corpus_key}}
+            if after_sk is not None:
+                key_condition_expression += " AND sk > :sk"
+                expression_attribute_values[":sk"] = {"S": after_sk}
+
+            page = []
+            for item in ddb.get_paginated_items(
+                table_name=TEST_TABLE_NAME,
+                key_condition_expression=key_condition_expression,
+                expression_attribute_values=expression_attribute_values,
+                limit=limit,
+            ):
+                page.append(DynamoDB.item_to_dict(item)["sk"])
+                if len(page) >= limit:
+                    break
+            return page
+
+        first_page = fetch_page(limit=2)
+        assert first_page == raw_content_ids[:2]
+
+        second_page = fetch_page(after_sk=first_page[-1], limit=2)
+        assert second_page == raw_content_ids[2:]
+
+        empty_page = fetch_page(after_sk=raw_content_ids[-1], limit=2)
+        assert empty_page == []
+    finally:
+        for item in items_to_store:
+            ddb.delete_item_by_pk_sk(TEST_TABLE_NAME, item["pk"], item["sk"])

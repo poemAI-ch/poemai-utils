@@ -1,5 +1,4 @@
 import logging
-import os
 from unittest.mock import MagicMock, patch
 
 import numpy as np

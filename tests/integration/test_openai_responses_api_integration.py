@@ -5,8 +5,8 @@ import time
 from typing import Callable, Iterable, Optional
 
 import pytest
+from poemai_utils.openai.ask import Ask
 from poemai_utils.openai.ask_responses import AskResponses
-from regex import D
 
 _logger = logging.getLogger(__name__)
 
@@ -1019,22 +1019,41 @@ def test_openai_gpt_5_2(api_key: str):
     ]
 
     for model in models:
-        _logger.info(f"Testing GPT-5.2 model: {model}")
 
-        ask = AskResponses(openai_api_key=api_key, model=model)
+        for use_responses_api in (True, False):
+            if use_responses_api:
+                ask = AskResponses(openai_api_key=api_key, model=model)
+                args = {
+                    "input": "Explain the significance of the Turing Test in AI development."
+                }
+                if model == AskResponses.OPENAI_MODEL.GPT_5_2:
+                    args["reasoning"] = {"effort": "none"}
 
-        start_time = time.time()
-        response = ask.ask(
-            input="Explain the significance of the Turing Test in AI development.",
-        )
+            else:
+                ask = Ask(openai_api_key=api_key, model=model)
+                args = {
+                    "prompt": "Explain the significance of the Turing Test in AI development.",
+                }
 
-        duration_ms = int((time.time() - start_time) * 1000)
-        output_text = getattr(response, "output_text", "").strip()
-        _logger.info(
-            f"Model {model} response in ({duration_ms} ms): \n------\n{output_text}\n---- END MODEL OUTPUT ",
-        )
+            _logger.info(
+                f"Testing GPT-5.2 model: {model} using {'Responses API' if use_responses_api else 'standard API'}"
+            )
+            start_time = time.time()
 
-        assert output_text, "Expected non-empty output from GPT-5.2 model"
-        assert (
-            "Turing Test" in output_text
-        ), f"Expected response to mention 'Turing Test', got: {output_text}"
+            response = ask.ask(**args)
+
+            duration_ms = int((time.time() - start_time) * 1000)
+
+            if use_responses_api:
+                output_text = getattr(response, "output_text", "").strip()
+            else:
+                output_text = response
+
+            _logger.info(
+                f"Model {model} response in ({duration_ms} ms): \n------\n{output_text}\n---- END MODEL OUTPUT ",
+            )
+
+            assert output_text, "Expected non-empty output from GPT-5.2 model"
+            assert (
+                "Turing Test" in output_text
+            ), f"Expected response to mention 'Turing Test', got: {output_text}"

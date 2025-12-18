@@ -1276,18 +1276,24 @@ class DynamoDBEmulator:
 
         # Helper function to evaluate conditions
         def evaluate_condition(item, key, operator, value):
-            if operator == "=" and item.get(key) == value:
-                return True
-            if operator == ">=" and item.get(key) >= value:
-                return True
-            if operator == "<=" and item.get(key) <= value:
-                return True
-            if operator == ">" and item.get(key) > value:
-                return True
-            if operator == "<" and item.get(key) < value:
-                return True
-            if operator == "begins_with" and item.get(key, "").startswith(value):
-                return True
+            item_value = item.get(key)
+            if operator == "begins_with":
+                return (item_value or "").startswith(value)
+            if item_value is None:
+                return False
+            try:
+                if operator == "=":
+                    return item_value == value
+                if operator == ">=":
+                    return item_value >= value
+                if operator == "<=":
+                    return item_value <= value
+                if operator == ">":
+                    return item_value > value
+                if operator == "<":
+                    return item_value < value
+            except TypeError:
+                return False
             return False
 
         # Parse the KeyConditionExpression
@@ -1420,18 +1426,13 @@ class DynamoDBEmulator:
             )
 
         # we ignore the index and just do a full table scan
-        for i, item in enumerate(
-            self.query(
-                table_name,
-                key_condition_expression,
-                expression_attribute_values,
-                projection_expression,
-                limit=limit,
-            )["Items"]
-        ):
-            if i >= limit:
-                break
-
+        for item in self.query(
+            table_name,
+            key_condition_expression,
+            expression_attribute_values,
+            projection_expression,
+            limit=limit,
+        )["Items"]:
             # Apply index projection if index is specified
             if index_name:
                 item_dict = DynamoDB.item_to_dict(item)

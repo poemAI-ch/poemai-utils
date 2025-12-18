@@ -384,3 +384,83 @@ class TestDynamoDBEmulatorIndexProjection:
         assert result_item["pk"] == "METADATA#"
         assert "raw_content_id" in result_item
         assert result_item["raw_content_id"] == "abc123"
+
+    def test_query_range_operators_skip_missing_sort_keys(
+        self, emulator_with_enforcement
+    ):
+        """Test range operators with missing attributes in KeyConditionExpression."""
+        table_name = "test_table"
+        corpus_key = "test_corpus"
+
+        emulator_with_enforcement.add_index(
+            table_name=table_name,
+            index_name="corpus_key-raw_content_id-index",
+            projection_type="KEYS_ONLY",
+            hash_key="corpus_key",
+            sort_key="raw_content_id",
+        )
+
+        items = [
+            {
+                "pk": "METADATA#",
+                "sk": "RAW_CONTENT_ID#rci_0001",
+                "corpus_key": corpus_key,
+                "raw_content_id": "rci_0001",
+            },
+            {
+                "pk": "METADATA#",
+                "sk": "RAW_CONTENT_ID#rci_0002",
+                "corpus_key": corpus_key,
+                "raw_content_id": "rci_0002",
+            },
+            {
+                "pk": "METADATA#",
+                "sk": "RAW_CONTENT_ID#rci_0003",
+                "corpus_key": corpus_key,
+                "raw_content_id": "rci_0003",
+            },
+            {
+                "pk": "CORPUS_METADATA#",
+                "sk": "CORPUS_KEY#test_corpus",
+                "corpus_key": corpus_key,
+            },
+        ]
+
+        for item in items:
+            emulator_with_enforcement.store_item(table_name, item)
+
+        base_query_args = {
+            "table_name": table_name,
+            "projection_expression": "pk,raw_content_id",
+            "index_name": "corpus_key-raw_content_id-index",
+        }
+
+        results_gt = list(
+            emulator_with_enforcement.get_paginated_items(
+                key_condition_expression="corpus_key = :corpus_key AND raw_content_id > :raw_content_id",
+                expression_attribute_values={
+                    ":corpus_key": {"S": corpus_key},
+                    ":raw_content_id": {"S": "rci_0001"},
+                },
+                **base_query_args,
+            )
+        )
+        raw_content_ids_gt = [
+            DynamoDB.item_to_dict(item)["raw_content_id"] for item in results_gt
+        ]
+        assert raw_content_ids_gt == ["rci_0002", "rci_0003"]
+
+        results_lt = list(
+            emulator_with_enforcement.get_paginated_items(
+                key_condition_expression="corpus_key = :corpus_key AND raw_content_id < :raw_content_id",
+                expression_attribute_values={
+                    ":corpus_key": {"S": corpus_key},
+                    ":raw_content_id": {"S": "rci_0003"},
+                },
+                **base_query_args,
+            )
+        )
+        raw_content_ids_lt = [
+            DynamoDB.item_to_dict(item)["raw_content_id"] for item in results_lt
+        ]
+        assert raw_content_ids_lt == ["rci_0001", "rci_0002"]

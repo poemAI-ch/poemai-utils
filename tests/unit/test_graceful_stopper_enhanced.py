@@ -2,7 +2,6 @@ import os
 import threading
 import unittest.mock
 
-import pytest
 from poemai_utils.operations_utils import GracefulStopper
 
 

@@ -29,7 +29,7 @@ def test_embedding():
 
 
 try:
-    import sentence_transformers
+    import sentence_transformers  # noqa: F401
 
     HAS_SENTENCE_TRANSFORMERS = True
 except ImportError:
