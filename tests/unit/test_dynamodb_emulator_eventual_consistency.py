@@ -140,6 +140,71 @@ class TestDynamoDBEmulatorEventualConsistency:
         )
         assert result3["data"] == "new_value"
 
+    def test_not_found_reads_override(self):
+        """Test that not_found_reads forces initial not-found even when previous versions exist."""
+        config = {
+            "enabled": True,
+            # Separate not-found read plus one stale read
+            "delay_reads": 1,
+            "not_found_reads": 1,
+            "patterns": [
+                {"table_name": "test_table", "pk": "test_pk", "sk": "test_sk"}
+            ],
+        }
+        emulator = DynamoDBEmulator(
+            sqlite_filename=None,
+            eventual_consistency_config=config,
+            allowed_reserved_keywords=["data"],
+        )
+
+        emulator.store_item(
+            "test_table", {"pk": "test_pk", "sk": "test_sk", "data": "old_value"}
+        )
+        emulator.store_item(
+            "test_table", {"pk": "test_pk", "sk": "test_sk", "data": "new_value"}
+        )
+
+        # First read returns not found even though there is a previous version
+        assert emulator.get_item_by_pk_sk("test_table", "test_pk", "test_sk") is None
+        # Next read still returns stale (old) value because delay_reads=2
+        assert (
+            emulator.get_item_by_pk_sk("test_table", "test_pk", "test_sk")["data"]
+            == "old_value"
+        )
+        # Third read returns the fresh value
+        assert (
+            emulator.get_item_by_pk_sk("test_table", "test_pk", "test_sk")["data"]
+            == "new_value"
+        )
+
+    def test_stale_read_counter_counts_not_found_and_stale(self):
+        """Verify stale read counter increments for both not-found and stale responses."""
+        config = {
+            "enabled": True,
+            "delay_reads": 1,
+            "not_found_reads": 1,
+            "patterns": [{"table_name": "test_table", "pk": "count_pk", "sk": "a"}],
+        }
+        emulator = DynamoDBEmulator(
+            sqlite_filename=None,
+            eventual_consistency_config=config,
+            allowed_reserved_keywords=["data"],
+        )
+
+        emulator.store_item("test_table", {"pk": "count_pk", "sk": "a", "data": "old"})
+        emulator.store_item("test_table", {"pk": "count_pk", "sk": "a", "data": "new"})
+
+        assert emulator.get_item_by_pk_sk("test_table", "count_pk", "a") is None
+        assert (
+            emulator.get_item_by_pk_sk("test_table", "count_pk", "a")["data"] == "old"
+        )
+        assert (
+            emulator.get_item_by_pk_sk("test_table", "count_pk", "a")["data"] == "new"
+        )
+
+        # One not-found + one stale read
+        assert emulator.get_stale_read_count("test_table", "count_pk", "a") == 2
+
     def test_eventual_consistency_different_delay_counts(self):
         """Test eventual consistency simulation with different delay counts."""
         config = {

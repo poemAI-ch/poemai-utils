@@ -169,6 +169,60 @@ class DaoHelper:
         )
         return {**raw_object, **fields}
 
+    @classmethod
+    def get_object_list(
+        cls,
+        key_element_enum,
+        field_to_key_formatters,
+        db,
+        table_name,
+        object_type,
+        values,
+        list_key_name,
+    ):
+
+        pk, sk = cls.build_pk_sk(
+            key_element_enum, field_to_key_formatters, object_type, dict(values)
+        )
+
+        values_with_zeroed = dict(values)
+        values_with_zeroed[list_key_name] = ""
+
+        pk, sk_start = cls.build_pk_sk(
+            key_element_enum, field_to_key_formatters, object_type, values_with_zeroed
+        )
+        key_condition_expression = "pk = :pk AND sk >= :sk"
+        expression_attribute_values = {
+            ":pk": {"S": pk},
+            ":sk": {"S": sk_start},
+        }
+
+        items_are_not_yet_deserialized = True
+        if hasattr(db, "get_paginated_items"):
+            items_iter = db.get_paginated_items(
+                table_name,
+                key_condition_expression=key_condition_expression,
+                expression_attribute_values=expression_attribute_values,
+            )
+        else:
+            items_iter = db.get_paginated_items_by_pk(
+                table_name,
+                pk,
+            )
+            items_are_not_yet_deserialized = False
+
+        for item in items_iter:
+            if items_are_not_yet_deserialized:
+                item_dict = DynamoDB.item_to_dict(item)
+            else:
+                item_dict = item
+
+            if item_dict["sk"].startswith(sk):
+                yield item_dict
+            else:
+                if item_dict["sk"] > sk:
+                    break
+
     @staticmethod
     def calc_content_hash(text: str) -> str:
         return hashlib.sha256(text.encode()).hexdigest()

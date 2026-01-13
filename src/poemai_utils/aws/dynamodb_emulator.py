@@ -699,6 +699,12 @@ class DynamoDBEmulator:
         self.stale_reads_remaining = (
             {}
         )  # tracks how many stale reads remain for each key
+        self.not_found_reads_remaining = (
+            {}
+        )  # tracks how many reads should return not found for each key
+        self.stale_reads_served_count = (
+            {}
+        )  # tracks how many stale/not-found reads were served per key
         self.previous_versions = {}  # stores previous versions of items
         self.shadow_index = (
             {}
@@ -805,12 +811,21 @@ class DynamoDBEmulator:
                 self.previous_versions[composite_key] = self.data_table[composite_key]
 
             # Check if this item should have eventual consistency simulation
-            if self._should_simulate_eventual_consistency(table_name, pk, sk):
-                # Configure how many stale reads should return the old version
-                delay_reads = self.eventual_consistency_config.get("delay_reads", 2)
+            pattern_match = self._match_eventual_pattern(table_name, pk, sk)
+            if pattern_match:
+                delay_reads = pattern_match.get(
+                    "delay_reads",
+                    self.eventual_consistency_config.get("delay_reads", 2),
+                )
                 self.stale_reads_remaining[composite_key] = delay_reads
+                not_found_reads = pattern_match.get(
+                    "not_found_reads",
+                    self.eventual_consistency_config.get("not_found_reads", 0),
+                )
+                if not_found_reads > 0:
+                    self.not_found_reads_remaining[composite_key] = not_found_reads
                 _logger.debug(
-                    f"Configured {delay_reads} stale reads for {composite_key}"
+                    f"Configured {delay_reads} stale reads and {not_found_reads} not-found reads for {composite_key}"
                 )
 
             serialized_item = DynamoDB.ddb_type_serializer.serialize(item)
@@ -826,26 +841,25 @@ class DynamoDBEmulator:
             self.index_table[index_key] = index_list
             self._commit()
 
-    def _should_simulate_eventual_consistency(self, table_name, pk, sk):
+    def _match_eventual_pattern(self, table_name, pk, sk):
         """
-        Determine if eventual consistency should be simulated for this item.
-        Returns True if the item matches any of the configured patterns.
+        Determine if eventual consistency should be simulated for this item and return the matched pattern.
         """
         if not self.eventual_consistency_config.get("enabled", False):
-            return False
+            return None
 
         patterns = self.eventual_consistency_config.get("patterns", [])
         for pattern in patterns:
             if pattern.get("table_name") == table_name:
                 if "pk_pattern" in pattern:
                     if re.match(pattern["pk_pattern"], pk):
-                        return True
+                        return pattern
                 elif "pk" in pattern and pattern["pk"] == pk:
                     if "sk" in pattern and pattern["sk"] == sk:
-                        return True
+                        return pattern
                     elif "sk" not in pattern:
-                        return True
-        return False
+                        return pattern
+        return None
 
     def store_new_item(self, table_name, item, primary_key_name):
         """Store an item only if it does not already exist."""
@@ -985,15 +999,41 @@ class DynamoDBEmulator:
 
         # Check if this read should return stale data due to eventual consistency
         with self.lock:
+            if composite_key in self.not_found_reads_remaining:
+                if self.not_found_reads_remaining[composite_key] > 0:
+                    self.not_found_reads_remaining[composite_key] -= 1
+                    self.stale_reads_served_count[composite_key] = (
+                        self.stale_reads_served_count.get(composite_key, 0) + 1
+                    )
+                    _logger.info(
+                        f"Returning simulated not-found for {composite_key}, {self.not_found_reads_remaining[composite_key]} not-found reads remaining"
+                    )
+                    if self.not_found_reads_remaining[composite_key] == 0:
+                        del self.not_found_reads_remaining[composite_key]
+                    if (
+                        composite_key in self.stale_reads_remaining
+                        and self.stale_reads_remaining[composite_key] == 0
+                    ):
+                        self.previous_versions.pop(composite_key, None)
+                        self.stale_reads_remaining.pop(composite_key, None)
+                    return None
             if (
                 composite_key in self.stale_reads_remaining
                 and self.stale_reads_remaining[composite_key] > 0
             ):
                 self.stale_reads_remaining[composite_key] -= 1
+                self.stale_reads_served_count[composite_key] = (
+                    self.stale_reads_served_count.get(composite_key, 0) + 1
+                )
                 stale_data = self.previous_versions.get(composite_key)
                 _logger.info(
                     f"Returning stale data for {composite_key}, {self.stale_reads_remaining[composite_key]} stale reads remaining"
                 )
+
+                if self.stale_reads_remaining[composite_key] == 0:
+                    del self.stale_reads_remaining[composite_key]
+                    if composite_key in self.previous_versions:
+                        del self.previous_versions[composite_key]
 
                 if stale_data is not None:
                     retval = DynamoDB.ddb_type_deserializer.deserialize(stale_data)
@@ -1119,10 +1159,28 @@ class DynamoDBEmulator:
             # Check if this read should return stale data due to eventual consistency
             with self.lock:
                 if (
+                    composite_key in self.not_found_reads_remaining
+                    and self.not_found_reads_remaining[composite_key] > 0
+                ):
+                    self.not_found_reads_remaining[composite_key] -= 1
+                    self.stale_reads_served_count[composite_key] = (
+                        self.stale_reads_served_count.get(composite_key, 0) + 1
+                    )
+                    _logger.debug(
+                        f"Returning simulated not-found for {composite_key} in paginated query, {self.not_found_reads_remaining[composite_key]} not-found reads remaining"
+                    )
+                    if self.not_found_reads_remaining[composite_key] == 0:
+                        del self.not_found_reads_remaining[composite_key]
+                    shadow_keys_to_remove.append(composite_key)
+                    continue
+                if (
                     composite_key in self.stale_reads_remaining
                     and self.stale_reads_remaining[composite_key] > 0
                 ):
                     self.stale_reads_remaining[composite_key] -= 1
+                    self.stale_reads_served_count[composite_key] = (
+                        self.stale_reads_served_count.get(composite_key, 0) + 1
+                    )
                     stale_data = self.previous_versions.get(composite_key)
                     _logger.debug(
                         f"Returning stale data for {composite_key} in paginated query, {self.stale_reads_remaining[composite_key]} stale reads remaining"
@@ -1202,15 +1260,25 @@ class DynamoDBEmulator:
                 self.previous_versions[composite_key] = self.data_table[composite_key]
 
             # Check if this delete should have eventual consistency simulation
-            if self._should_simulate_eventual_consistency(table_name, pk, sk):
+            pattern_match = self._match_eventual_pattern(table_name, pk, sk)
+            if pattern_match:
                 _logger.debug(
                     f"Simulating eventual consistency for delete operation on {pk}:{sk}"
                 )
                 # Configure how many stale reads should still return the deleted item
-                delay_reads = self.eventual_consistency_config.get("delay_reads", 2)
+                delay_reads = pattern_match.get(
+                    "delay_reads",
+                    self.eventual_consistency_config.get("delay_reads", 2),
+                )
                 self.stale_reads_remaining[composite_key] = delay_reads
+                not_found_reads = pattern_match.get(
+                    "not_found_reads",
+                    self.eventual_consistency_config.get("not_found_reads", 0),
+                )
+                if not_found_reads > 0:
+                    self.not_found_reads_remaining[composite_key] = not_found_reads
                 _logger.debug(
-                    f"Configured {delay_reads} stale reads for deleted item {composite_key}"
+                    f"Configured {delay_reads} stale reads and {not_found_reads} not-found reads for deleted item {composite_key}"
                 )
 
                 # Add to shadow index to track this deleted item
@@ -1583,6 +1651,13 @@ class DynamoDBEmulator:
         # reset stale data so that latest data is returned
         _logger.info(f"Making all reads consistent by resetting stale read counters")
         self.stale_reads_remaining = {k: 0 for k in self.stale_reads_remaining.keys()}
+        self.not_found_reads_remaining = {}
+        self.stale_reads_served_count = {}
         # Clear shadow index as well since all reads should now be consistent
         self.shadow_index = {}
         self.previous_versions = {}
+
+    def get_stale_read_count(self, table_name, pk, sk):
+        """Return how many stale/not-found reads were served for a specific key."""
+        composite_key = self._get_composite_key(table_name, pk, sk)
+        return self.stale_reads_served_count.get(composite_key, 0)
