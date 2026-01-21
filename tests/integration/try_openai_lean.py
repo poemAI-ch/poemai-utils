@@ -10,6 +10,7 @@ Usage:
   export OPENAI_API_KEY=sk-...
   python try_openai_requests.py
 """
+
 import json
 import os
 

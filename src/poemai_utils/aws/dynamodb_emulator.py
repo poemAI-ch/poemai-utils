@@ -1319,18 +1319,19 @@ class DynamoDBEmulator:
         KeyConditionExpression,
         ExpressionAttributeValues,
         ProjectionExpression=None,
-        limit=10000,
     ):
         """A very simplistic implementation for DynamoDB query operation. It only supports
         equality and begins_with operators in the KeyConditionExpression. It does not
         support any other operations like filter expressions, etc. It also does not
         support any index operations. It is only meant to be used for testing purposes.
         """
+        limit = 10000  # Internal limit to prevent infinite loops
+
         if self.log_access:
             _logger.info(
                 f"Querying table {TableName} with KeyConditionExpression: {KeyConditionExpression}, "
                 f"ExpressionAttributeValues: {ExpressionAttributeValues}, "
-                f"ProjectionExpression: {ProjectionExpression}, limit: {limit}"
+                f"ProjectionExpression: {ProjectionExpression}"
             )
 
         # Validate ProjectionExpression attribute names against DynamoDB reserved keywords
@@ -1494,12 +1495,14 @@ class DynamoDBEmulator:
             )
 
         # we ignore the index and just do a full table scan
+        # Note: query() doesn't accept limit parameter (to match real DynamoDB API)
+        # The limit parameter in get_paginated_items() is ignored in emulator for simplicity
+        # Real DynamoDB uses limit to control page size, but emulator just returns all matching items
         for item in self.query(
             table_name,
             key_condition_expression,
             expression_attribute_values,
             projection_expression,
-            limit=limit,
         )["Items"]:
             # Apply index projection if index is specified
             if index_name:
