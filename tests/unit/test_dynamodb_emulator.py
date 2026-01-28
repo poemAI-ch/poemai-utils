@@ -1287,3 +1287,96 @@ def test_delete_inexistent_item_doesn_t_throw():
         ddb.delete_item_by_pk_sk(TEST_TABLE_NAME, "nonexistent_pk", "nonexistent_sk")
     except Exception as e:
         pytest.fail(f"Deleting a non-existent item raised an exception: {e}")
+
+
+def test_update_expression_size_limit():
+    """Test that UpdateExpression size limit is enforced (4KB limit)."""
+    from botocore.exceptions import ClientError
+
+    ddb = DynamoDBEmulator(None)
+    TEST_TABLE_NAME = "test_table"
+
+    # Store an initial item with version 0
+    initial_item = {"pk": "test_pk", "sk": "test_sk", "version": 0}
+    ddb.store_item(TEST_TABLE_NAME, initial_item)
+
+    # Create an update with many attributes that will exceed the 4KB limit
+    # Each fragment_X_status attribute adds roughly 88 bytes to the UpdateExpression
+    # We need about 50+ attributes to exceed 4KB
+    large_update = {}
+    num_fragments = 100  # This should definitely exceed the limit
+
+    for i in range(num_fragments):
+        large_update[f"fragment_{i}_status"] = "completed"
+        large_update[f"fragment_{i}_duration"] = 123.45
+        large_update[f"fragment_{i}_timestamp"] = "2024-01-28T12:00:00Z"
+
+    # Attempt to update with too many attributes - should raise ValidationException
+    with pytest.raises(ClientError) as exc_info:
+        ddb.update_versioned_item_by_pk_sk(
+            TEST_TABLE_NAME, "test_pk", "test_sk", large_update, 0
+        )
+
+    # Verify the error details
+    error = exc_info.value
+    assert error.response["Error"]["Code"] == "ValidationException"
+    assert (
+        "Expression size has exceeded the maximum allowed size"
+        in error.response["Error"]["Message"]
+    )
+
+    # Verify the item was not updated (should still be at version 0)
+    item = ddb.get_item_by_pk_sk(TEST_TABLE_NAME, "test_pk", "test_sk")
+    assert item["version"] == 0
+    assert "fragment_0_status" not in item  # Update should have failed
+
+
+def test_update_expression_size_limit_boundary():
+    """Test UpdateExpression size limit at the boundary (just under vs just over 4KB)."""
+    from botocore.exceptions import ClientError
+
+    ddb = DynamoDBEmulator(None)
+    TEST_TABLE_NAME = "test_table"
+
+    # Store an initial item
+    ddb.store_item(TEST_TABLE_NAME, {"pk": "test_pk", "sk": "test_sk", "version": 0})
+
+    # Test with a smaller number of attributes that should pass (under 4KB)
+    # With 20 fragments × 3 attributes each = 60 attributes, roughly 88 bytes each = ~5,280 bytes
+    # But the actual calculation depends on attribute names, so let's use a safer number
+    small_update = {}
+    for i in range(10):
+        small_update[f"field_{i}_a"] = "value"
+        small_update[f"field_{i}_b"] = 123
+
+    # This should succeed (well under 4KB)
+    ddb.update_versioned_item_by_pk_sk(
+        TEST_TABLE_NAME, "test_pk", "test_sk", small_update, 0
+    )
+
+    # Verify the update succeeded
+    item = ddb.get_item_by_pk_sk(TEST_TABLE_NAME, "test_pk", "test_sk")
+    assert item["version"] == 1
+    assert item["field_0_a"] == "value"
+
+    # Now test with enough attributes to exceed the limit (over 4KB)
+    # Reset the item
+    ddb.delete_item_by_pk_sk(TEST_TABLE_NAME, "test_pk", "test_sk")
+    ddb.store_item(TEST_TABLE_NAME, {"pk": "test_pk", "sk": "test_sk", "version": 0})
+
+    # Create an update with many attributes that will exceed 4KB
+    large_update = {}
+    for i in range(60):  # 60 fragments with 3 attributes each = 180 SET clauses
+        large_update[f"fragment_{i}_status"] = "completed"
+        large_update[f"fragment_{i}_duration"] = 123.45
+        large_update[f"fragment_{i}_error"] = "none"
+
+    # This should fail with ValidationException
+    with pytest.raises(ClientError) as exc_info:
+        ddb.update_versioned_item_by_pk_sk(
+            TEST_TABLE_NAME, "test_pk", "test_sk", large_update, 0
+        )
+
+    error = exc_info.value
+    assert error.response["Error"]["Code"] == "ValidationException"
+    assert "Expression size has exceeded" in error.response["Error"]["Message"]

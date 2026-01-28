@@ -899,6 +899,52 @@ class DynamoDBEmulator:
             allowed_keywords=self.allowed_reserved_keywords,
         )
 
+        # Validate UpdateExpression size (DynamoDB limit: ~4KB)
+        # Simulate what would be generated in a real UpdateExpression
+        # Format: SET #attr1 = :attr1, #attr2 = :attr2, ...
+        # Plus ExpressionAttributeNames: {"#attr1": "attr1", ...}
+        set_expressions = [f"#{version_attribute_name} = :newVersion"]
+        for attr in attribute_updates.keys():
+            set_expressions.append(f"#{attr} = :{attr}")
+
+        update_expression = "SET " + ", ".join(set_expressions)
+        expression_attribute_names = {
+            f"#{attr}": attr for attr in attribute_updates.keys()
+        }
+        expression_attribute_names[f"#{version_attribute_name}"] = (
+            version_attribute_name
+        )
+
+        # Calculate approximate size
+        update_expr_size = len(update_expression)
+        attr_names_size = sum(
+            len(f'"{k}":"{v}",') for k, v in expression_attribute_names.items()
+        )
+        total_expression_size = update_expr_size + attr_names_size
+
+        # DynamoDB's limit is around 4KB
+        MAX_EXPRESSION_SIZE = 4096
+        if total_expression_size > MAX_EXPRESSION_SIZE:
+            from botocore.exceptions import ClientError
+
+            error_message = (
+                f"Invalid UpdateExpression: Expression size has exceeded the maximum allowed size; "
+                f"expression size: {total_expression_size} bytes, limit: {MAX_EXPRESSION_SIZE} bytes. "
+                f"UpdateExpression has {len(set_expressions)} SET clauses, "
+                f"ExpressionAttributeNames has {len(expression_attribute_names)} entries."
+            )
+            _logger.error(
+                f"DynamoDB UpdateExpression size limit exceeded: {error_message}"
+            )
+
+            error_response = {
+                "Error": {
+                    "Code": "ValidationException",
+                    "Message": error_message,
+                }
+            }
+            raise ClientError(error_response, "UpdateItem")
+
         with self.lock:
             composite_key = self._get_composite_key(table_name, pk, sk)
             item_serialized = self.data_table.get(composite_key)

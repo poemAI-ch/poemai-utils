@@ -277,6 +277,31 @@ class DynamoDB:
             version_attribute_name
         )
 
+        # Validate UpdateExpression size (DynamoDB limit: ~4KB)
+        # Calculate approximate size: UpdateExpression + ExpressionAttributeNames
+        update_expr_size = len(update_expression)
+        attr_names_size = sum(
+            len(f'"{k}":"{v}",') for k, v in expression_attribute_names.items()
+        )
+        total_expression_size = update_expr_size + attr_names_size
+
+        # DynamoDB's actual limit is around 4KB for the entire expression
+        # We use 4096 bytes as the threshold
+        MAX_EXPRESSION_SIZE = 4096
+        if total_expression_size > MAX_EXPRESSION_SIZE:
+            from botocore.exceptions import ClientError
+
+            error_response = {
+                "Error": {
+                    "Code": "ValidationException",
+                    "Message": f"Invalid UpdateExpression: Expression size has exceeded the maximum allowed size; "
+                    f"expression size: {total_expression_size} bytes, limit: {MAX_EXPRESSION_SIZE} bytes. "
+                    f"UpdateExpression has {len(set_expressions)} SET clauses, "
+                    f"ExpressionAttributeNames has {len(expression_attribute_names)} entries.",
+                }
+            }
+            raise ClientError(error_response, "UpdateItem")
+
         try:
             key = {hash_key_name: {"S": hash_key}}
             if range_key is not None:
