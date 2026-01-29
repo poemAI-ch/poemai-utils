@@ -289,8 +289,6 @@ class DynamoDB:
         # We use 4096 bytes as the threshold
         MAX_EXPRESSION_SIZE = 4096
         if total_expression_size > MAX_EXPRESSION_SIZE:
-            from botocore.exceptions import ClientError
-
             error_response = {
                 "Error": {
                     "Code": "ValidationException",
