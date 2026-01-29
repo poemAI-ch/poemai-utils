@@ -1540,6 +1540,11 @@ class DynamoDBEmulator:
                 f"Index {index_name} not found. Use add_index() to define it first."
             )
 
+        if index_name and projection_expression:
+            self._validate_projection_expression_against_index(
+                table_name, index_name, projection_expression
+            )
+
         # we ignore the index and just do a full table scan
         # Note: query() doesn't accept limit parameter (to match real DynamoDB API)
         # The limit parameter in get_paginated_items() is ignored in emulator for simplicity
@@ -1643,6 +1648,61 @@ class DynamoDBEmulator:
             "sort_key": sort_key,
             "non_key_attributes": non_key_attributes or [],
         }
+
+    def _validate_projection_expression_against_index(
+        self, table_name, index_name, projection_expression
+    ):
+        """
+        Ensure a ProjectionExpression only references attributes projected by the index.
+        DynamoDB raises a ValidationException when a query against a KEYS_ONLY/INCLUDE
+        index asks for non-projected attributes; we mirror that behaviour so tests
+        catch incorrect assumptions about index projections.
+        """
+        if (
+            not self.enforce_index_existence
+            or not projection_expression
+            or not index_name
+            or table_name not in self.indexes
+            or index_name not in self.indexes[table_name]
+        ):
+            return
+
+        index_spec = self.indexes[table_name][index_name]
+
+        # ALL projection exposes every attribute
+        if index_spec["projection_type"] == "ALL":
+            return
+
+        projected_attributes = set()
+
+        # Index keys
+        projected_attributes.add(index_spec["hash_key"])
+        if index_spec["sort_key"]:
+            projected_attributes.add(index_spec["sort_key"])
+
+        # Table primary keys
+        pk_key, sk_key = self._get_key_names(table_name)
+        projected_attributes.add(pk_key)
+        if sk_key:
+            projected_attributes.add(sk_key)
+
+        # Included non-key attributes
+        if index_spec["projection_type"] == "INCLUDE":
+            projected_attributes.update(index_spec["non_key_attributes"])
+
+        requested_attributes = {
+            attr.strip()
+            for attr in projection_expression.split(",")
+            if attr and attr.strip()
+        }
+
+        missing = requested_attributes - projected_attributes
+        if missing:
+            raise ValueError(
+                f"ProjectionExpression references attributes not projected by index "
+                f"{index_name}: {sorted(missing)}. Projected attributes: "
+                f"{sorted(projected_attributes)}"
+            )
 
     def _apply_index_projection(
         self, item, table_name, index_name, table_key_attributes=None

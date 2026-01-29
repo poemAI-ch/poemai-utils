@@ -297,6 +297,32 @@ class TestDynamoDBEmulatorIndexProjection:
             assert "site_id" not in item_dict
             assert "extra_field" not in item_dict
 
+    def test_projection_expression_rejects_unprojected_attributes(
+        self, emulator_with_enforcement, sample_data
+    ):
+        """ProjectionExpression should fail when it requests non-projected fields."""
+        emulator_with_enforcement.add_index(
+            table_name="test_table",
+            index_name="button_id-assigned_at-index",
+            projection_type="KEYS_ONLY",
+            hash_key="button_id",
+            sort_key="assigned_at",
+        )
+
+        for item in sample_data:
+            emulator_with_enforcement.store_item("test_table", item)
+
+        with pytest.raises(ValueError, match="not projected by index"):
+            list(
+                emulator_with_enforcement.get_paginated_items(
+                    table_name="test_table",
+                    key_condition_expression="button_id = :button_id",
+                    expression_attribute_values={":button_id": {"S": "button1"}},
+                    projection_expression="pk,sk,extra_field",
+                    index_name="button_id-assigned_at-index",
+                )
+            )
+
     def test_get_paginated_items_without_index(
         self, emulator_with_enforcement, sample_data
     ):
