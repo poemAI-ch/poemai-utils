@@ -52,7 +52,7 @@ def main():
     if current_chunk:
         chunks.append(current_chunk)
 
-    ask = Ask(model=Ask.OPENAI_MODEL.GPT_4_o_2024_05_13)
+    ask = Ask(model=Ask.OPENAI_MODEL.GPT_4_1)
 
     output_markdown = ""
 

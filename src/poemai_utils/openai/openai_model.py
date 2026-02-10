@@ -7,6 +7,8 @@ from poemai_utils.enum_utils import add_enum_attrs, add_enum_repr_attr
 class OPENAI_MODEL(str, Enum):
     GPT_4_1 = "gpt-4.1"
     GPT_4_1_2025_04_14 = "gpt-4.1-2025-04-14"
+    GPT_4_1_MINI_2025_04_14 = "gpt-4.1-mini-2025-04-14"
+    GPT_4_1_MINI = "gpt-4.1-mini"
     GPT_4_5_PREVIEW = "gpt-4.5-preview"
     GPT_4_5_PREVIEW_2025_02_27 = "gpt-4.5-preview-2025-02-27"
     GPT_4_o = "gpt-4o"
@@ -80,6 +82,26 @@ add_enum_attrs(
             "model_key": "gpt-4.1-2025-04-14",
             "api_types": [AIApiType.CHAT_COMPLETIONS],
             "expensive": True,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": True,
+            "supports_reasoning": False,
+        },
+        OPENAI_MODEL.GPT_4_1_MINI_2025_04_14: {
+            "model_key": "gpt-4.1-mini-2025-04-14",
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
+            "expensive": False,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": True,
+            "supports_reasoning": False,
+        },
+        OPENAI_MODEL.GPT_4_1_MINI: {
+            "model_key": "gpt-4.1-mini",
+            "api_types": [AIApiType.CHAT_COMPLETIONS],
+            "expensive": False,
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": True,
