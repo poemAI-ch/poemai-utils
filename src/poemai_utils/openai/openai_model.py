@@ -45,6 +45,12 @@ class OPENAI_MODEL(str, Enum):
     GPT_5_2_2025_12_11 = "gpt-5.2-2025-12-11"
     GPT_5_2_CHAT_LATEST = "gpt-5.2-chat-latest"
     GPT_5_2 = "gpt-5.2"
+    GPT_5_4 = "gpt-5.4"
+    GPT_5_4_2026_03_05 = "gpt-5.4-2026-03-05"
+    GPT_5_4_MINI = "gpt-5.4-mini"
+    GPT_5_4_MINI_2026_03_17 = "gpt-5.4-mini-2026-03-17"
+    GPT_5_4_NANO = "gpt-5.4-nano"
+    GPT_5_4_NANO_2026_03_17 = "gpt-5.4-nano-2026-03-17"
 
     @classmethod
     def by_model_key(cls, model_key):
@@ -462,6 +468,66 @@ add_enum_attrs(
             "model_key": "gpt-5.2",
             "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
             "expensive": True,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+            "supports_reasoning": True,
+        },
+        OPENAI_MODEL.GPT_5_4: {
+            "model_key": "gpt-5.4",
+            "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
+            "expensive": True,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+            "supports_reasoning": True,
+        },
+        OPENAI_MODEL.GPT_5_4_2026_03_05: {
+            "model_key": "gpt-5.4-2026-03-05",
+            "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
+            "expensive": True,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+            "supports_reasoning": True,
+        },
+        OPENAI_MODEL.GPT_5_4_MINI: {
+            "model_key": "gpt-5.4-mini",
+            "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
+            "expensive": False,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+            "supports_reasoning": True,
+        },
+        OPENAI_MODEL.GPT_5_4_MINI_2026_03_17: {
+            "model_key": "gpt-5.4-mini-2026-03-17",
+            "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
+            "expensive": False,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+            "supports_reasoning": True,
+        },
+        OPENAI_MODEL.GPT_5_4_NANO: {
+            "model_key": "gpt-5.4-nano",
+            "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
+            "expensive": False,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+            "supports_reasoning": True,
+        },
+        OPENAI_MODEL.GPT_5_4_NANO_2026_03_17: {
+            "model_key": "gpt-5.4-nano-2026-03-17",
+            "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
+            "expensive": False,
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": True,

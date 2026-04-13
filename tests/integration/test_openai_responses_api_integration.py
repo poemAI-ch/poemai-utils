@@ -1057,3 +1057,51 @@ def test_openai_gpt_5_2(api_key: str):
             assert (
                 "Turing Test" in output_text
             ), f"Expected response to mention 'Turing Test', got: {output_text}"
+
+
+@pytest.mark.integration
+@pytest.mark.external
+def test_openai_gpt_5_4_snapshot(api_key: str):
+
+    model = AskResponses.OPENAI_MODEL.GPT_5_4_2026_03_05
+
+    for use_responses_api in (True, False):
+        if use_responses_api:
+            ask = AskResponses(openai_api_key=api_key, model=model)
+            args = {
+                "input": "Reply with exactly this text and nothing else: SNAPSHOT_OK",
+                "reasoning": {"effort": "none"},
+            }
+        else:
+            ask = Ask(openai_api_key=api_key, model=model)
+            args = {
+                "prompt": "Reply with exactly this text and nothing else: SNAPSHOT_OK",
+            }
+
+        _logger.info(
+            "Testing GPT-5.4 snapshot model %s using %s",
+            model,
+            "Responses API" if use_responses_api else "standard API",
+        )
+        start_time = time.time()
+
+        response = ask.ask(**args)
+
+        duration_ms = int((time.time() - start_time) * 1000)
+
+        if use_responses_api:
+            output_text = getattr(response, "output_text", "").strip()
+        else:
+            output_text = (response or "").strip()
+
+        _logger.info(
+            "Model %s response in (%s ms): %r",
+            model,
+            duration_ms,
+            output_text,
+        )
+
+        assert output_text, "Expected non-empty output from GPT-5.4 snapshot model"
+        assert (
+            "SNAPSHOT_OK" in output_text
+        ), f"Expected snapshot confirmation token, got: {output_text}"
