@@ -154,6 +154,7 @@ def test_build_object_item_matches_store_shape_without_mutating_values():
         values,
     )
     mock_db.store_item.assert_called_once_with("test_table", item)
+    assert values["object_type"] == "PARAGRAPH"
 
 
 def test_store_object():

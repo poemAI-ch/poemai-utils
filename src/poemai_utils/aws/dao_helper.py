@@ -249,6 +249,10 @@ class DaoHelper:
         versioned=False,
         only_if_new=False,
     ):
+        # Preserve the long-standing store_object contract: callers receive the
+        # resolved object type in their values mapping. Some consumers use that
+        # field when returning the newly-created object without reading it back.
+        values["object_type"] = object_type.name
         item = cls.build_object_item(
             key_element_enum,
             field_to_key_formatters,
