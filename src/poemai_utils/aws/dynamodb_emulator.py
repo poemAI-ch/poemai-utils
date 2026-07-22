@@ -4,6 +4,7 @@ import logging
 import re
 import threading
 
+from botocore.exceptions import ClientError
 from poemai_utils.aws.dynamodb import (
     DynamoDB,
     ItemAlreadyExistsException,
@@ -925,8 +926,6 @@ class DynamoDBEmulator:
         # DynamoDB's limit is around 4KB
         MAX_EXPRESSION_SIZE = 4096
         if total_expression_size > MAX_EXPRESSION_SIZE:
-            from botocore.exceptions import ClientError
-
             error_message = (
                 f"Invalid UpdateExpression: Expression size has exceeded the maximum allowed size; "
                 f"expression size: {total_expression_size} bytes, limit: {MAX_EXPRESSION_SIZE} bytes. "
@@ -975,8 +974,234 @@ class DynamoDBEmulator:
             self.data_table[composite_key] = serialized_item
             self._commit()
 
+    @staticmethod
+    def _transaction_attribute_name(token, expression_attribute_names):
+        return expression_attribute_names.get(token, token)
+
+    @staticmethod
+    def _transaction_attribute_value(token, expression_attribute_values):
+        if token not in expression_attribute_values:
+            raise ValueError(f"Missing transaction expression value {token}")
+        return DynamoDB.ddb_type_deserializer.deserialize(
+            expression_attribute_values[token]
+        )
+
+    @classmethod
+    def _transaction_condition_matches(
+        cls,
+        item,
+        condition_expression,
+        expression_attribute_names,
+        expression_attribute_values,
+    ):
+        if not condition_expression:
+            return True
+
+        names = expression_attribute_names or {}
+        values = expression_attribute_values or {}
+        conditions = re.split(r"\s+AND\s+", condition_expression, flags=re.I)
+        for condition in conditions:
+            condition = condition.strip()
+            match = re.fullmatch(
+                r"attribute_not_exists\(([^)]+)\)", condition, flags=re.I
+            )
+            if match:
+                attribute_name = cls._transaction_attribute_name(
+                    match.group(1).strip(), names
+                )
+                if item is not None and attribute_name in item:
+                    return False
+                continue
+
+            match = re.fullmatch(r"attribute_exists\(([^)]+)\)", condition, flags=re.I)
+            if match:
+                attribute_name = cls._transaction_attribute_name(
+                    match.group(1).strip(), names
+                )
+                if item is None or attribute_name not in item:
+                    return False
+                continue
+
+            match = re.fullmatch(r"([^\s]+)\s*=\s*(:[A-Za-z0-9_]+)", condition)
+            if match:
+                attribute_name = cls._transaction_attribute_name(match.group(1), names)
+                expected_value = cls._transaction_attribute_value(
+                    match.group(2), values
+                )
+                if item is None or item.get(attribute_name) != expected_value:
+                    return False
+                continue
+
+            raise NotImplementedError(
+                f"Unsupported transaction condition: {condition_expression}"
+            )
+        return True
+
+    @classmethod
+    def _apply_transaction_update(
+        cls,
+        item,
+        update_expression,
+        expression_attribute_names,
+        expression_attribute_values,
+    ):
+        if not update_expression or not update_expression.upper().startswith("SET "):
+            raise NotImplementedError(
+                f"Unsupported transaction update: {update_expression}"
+            )
+
+        names = expression_attribute_names or {}
+        values = expression_attribute_values or {}
+        for assignment in update_expression[4:].split(","):
+            match = re.fullmatch(r"\s*([^\s]+)\s*=\s*(:[A-Za-z0-9_]+)\s*", assignment)
+            if not match:
+                raise NotImplementedError(
+                    f"Unsupported transaction assignment: {assignment}"
+                )
+            attribute_name = cls._transaction_attribute_name(match.group(1), names)
+            item[attribute_name] = cls._transaction_attribute_value(
+                match.group(2), values
+            )
+        return item
+
+    @staticmethod
+    def _transaction_cancelled(item_count, failed_index):
+        reasons = [{"Code": "None"} for _ in range(item_count)]
+        reasons[failed_index] = {
+            "Code": "ConditionalCheckFailed",
+            "Message": "The conditional request failed",
+        }
+        response = {
+            "Error": {
+                "Code": "TransactionCanceledException",
+                "Message": "Transaction cancelled due to a failed condition",
+            },
+            "CancellationReasons": reasons,
+            "ResponseMetadata": {"HTTPStatusCode": 400},
+        }
+        return ClientError(response, "TransactWriteItems")
+
+    def transact_write_items(self, TransactItems, ClientRequestToken=None):
+        """Atomically apply the transaction subset used by PoemAI DAOs."""
+
+        del ClientRequestToken  # Accepted for production-call parity.
+        if not isinstance(TransactItems, list) or not TransactItems:
+            raise ValueError("TransactItems must be a non-empty list")
+
+        with self.lock:
+            staged_data = dict(self.data_table.items())
+            staged_indexes = {
+                key: set(value) for key, value in self.index_table.items()
+            }
+            touched_data_keys = set()
+            touched_index_keys = set()
+            transaction_keys = set()
+
+            for item_index, transaction_item in enumerate(TransactItems):
+                if len(transaction_item) != 1:
+                    raise ValueError(
+                        "Each transaction item must contain exactly one operation"
+                    )
+
+                operation_name, operation = next(iter(transaction_item.items()))
+                if operation_name not in ("Put", "Update", "Delete", "ConditionCheck"):
+                    raise NotImplementedError(
+                        f"Unsupported transaction operation {operation_name}"
+                    )
+
+                table_name = operation["TableName"]
+                pk_key, sk_key = self._get_key_names(table_name)
+                if operation_name == "Put":
+                    native_item = DynamoDB.item_to_dict(operation["Item"])
+                    pk = native_item[pk_key]
+                    sk = native_item.get(sk_key, "") if sk_key else ""
+                else:
+                    key_item = DynamoDB.item_to_dict(operation["Key"])
+                    pk = key_item[pk_key]
+                    sk = key_item.get(sk_key, "") if sk_key else ""
+
+                composite_key = self._get_composite_key(table_name, pk, sk)
+                transaction_key = (table_name, pk, sk)
+                if transaction_key in transaction_keys:
+                    error_response = {
+                        "Error": {
+                            "Code": "ValidationException",
+                            "Message": "Transaction cannot target the same item twice",
+                        },
+                        "ResponseMetadata": {"HTTPStatusCode": 400},
+                    }
+                    raise ClientError(error_response, "TransactWriteItems")
+                transaction_keys.add(transaction_key)
+
+                serialized_existing = staged_data.get(composite_key)
+                existing_item = (
+                    DynamoDB.ddb_type_deserializer.deserialize(serialized_existing)
+                    if serialized_existing is not None
+                    else None
+                )
+                if not self._transaction_condition_matches(
+                    existing_item,
+                    operation.get("ConditionExpression"),
+                    operation.get("ExpressionAttributeNames"),
+                    operation.get("ExpressionAttributeValues"),
+                ):
+                    raise self._transaction_cancelled(len(TransactItems), item_index)
+
+                index_key = self._get_index_key(table_name, pk)
+                if operation_name == "Put":
+                    staged_data[composite_key] = DynamoDB.ddb_type_serializer.serialize(
+                        native_item
+                    )
+                    staged_indexes.setdefault(index_key, set()).add(composite_key)
+                    touched_data_keys.add(composite_key)
+                    touched_index_keys.add(index_key)
+                elif operation_name == "Update":
+                    updated_item = dict(existing_item or key_item)
+                    updated_item = self._apply_transaction_update(
+                        updated_item,
+                        operation.get("UpdateExpression"),
+                        operation.get("ExpressionAttributeNames"),
+                        operation.get("ExpressionAttributeValues"),
+                    )
+                    staged_data[composite_key] = DynamoDB.ddb_type_serializer.serialize(
+                        updated_item
+                    )
+                    staged_indexes.setdefault(index_key, set()).add(composite_key)
+                    touched_data_keys.add(composite_key)
+                    touched_index_keys.add(index_key)
+                elif operation_name == "Delete":
+                    staged_data.pop(composite_key, None)
+                    staged_indexes.setdefault(index_key, set()).discard(composite_key)
+                    touched_data_keys.add(composite_key)
+                    touched_index_keys.add(index_key)
+
+            for composite_key in touched_data_keys:
+                if composite_key in staged_data:
+                    self.data_table[composite_key] = staged_data[composite_key]
+                elif composite_key in self.data_table:
+                    del self.data_table[composite_key]
+                self.previous_versions.pop(composite_key, None)
+                self.stale_reads_remaining.pop(composite_key, None)
+                self.not_found_reads_remaining.pop(composite_key, None)
+
+            for index_key in touched_index_keys:
+                staged_value = staged_indexes.get(index_key, set())
+                if staged_value:
+                    self.index_table[index_key] = staged_value
+                elif index_key in self.index_table:
+                    del self.index_table[index_key]
+
+            self._commit()
+
+        return {"ResponseMetadata": {"HTTPStatusCode": 200}}
+
     def get_item(
-        self, TableName, Key, ProjectionExpression=None, ExpressionAttributeNames=None
+        self,
+        TableName,
+        Key,
+        ProjectionExpression=None,
+        ExpressionAttributeNames=None,
+        ConsistentRead=False,
     ):
 
         pk_key, sk_key = self._get_key_names(TableName)
@@ -990,12 +1215,21 @@ class DynamoDBEmulator:
 
         if sk is None:
             _logger.debug(f"Getting item from table {TableName} by pk only: {pk}")
-            raw_item = self.get_item_by_pk(TableName, pk)
+            raw_item = self.get_item_by_pk(
+                TableName,
+                pk,
+                consistent_read=ConsistentRead,
+            )
         else:
             _logger.debug(
                 f"Getting item from table {TableName} by pk and sk: {pk}, {sk}"
             )
-            raw_item = self.get_item_by_pk_sk(TableName, pk, sk)
+            raw_item = self.get_item_by_pk_sk(
+                TableName,
+                pk,
+                sk,
+                consistent_read=ConsistentRead,
+            )
         if raw_item is None:
             return None
 
@@ -1036,7 +1270,7 @@ class DynamoDBEmulator:
         retval = {"Item": DynamoDB.ddb_type_serializer.serialize(projected_item)["M"]}
         return retval
 
-    def get_item_by_pk_sk(self, table_name, pk, sk):
+    def get_item_by_pk_sk(self, table_name, pk, sk, consistent_read=False):
         if self.log_access:
             _logger.info(f"Getting item from table {table_name} with pk:{pk}, sk:{sk}")
         composite_key = self._get_composite_key(table_name, pk, sk)
@@ -1045,7 +1279,7 @@ class DynamoDBEmulator:
 
         # Check if this read should return stale data due to eventual consistency
         with self.lock:
-            if composite_key in self.not_found_reads_remaining:
+            if not consistent_read and composite_key in self.not_found_reads_remaining:
                 if self.not_found_reads_remaining[composite_key] > 0:
                     self.not_found_reads_remaining[composite_key] -= 1
                     self.stale_reads_served_count[composite_key] = (
@@ -1063,7 +1297,7 @@ class DynamoDBEmulator:
                         self.previous_versions.pop(composite_key, None)
                         self.stale_reads_remaining.pop(composite_key, None)
                     return None
-            if (
+            if not consistent_read and (
                 composite_key in self.stale_reads_remaining
                 and self.stale_reads_remaining[composite_key] > 0
             ):
@@ -1128,7 +1362,7 @@ class DynamoDBEmulator:
 
         return result_list
 
-    def get_item_by_pk(self, table_name, pk):
+    def get_item_by_pk(self, table_name, pk, consistent_read=False):
         composite_key = self._get_composite_key(table_name, pk, "")
         pk_key, sk_key = self._get_key_names(table_name)
 

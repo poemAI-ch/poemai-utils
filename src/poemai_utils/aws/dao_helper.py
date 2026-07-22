@@ -130,11 +130,19 @@ class DaoHelper:
         table_name,
         object_type,
         values,
+        consistent_read=False,
     ):
         cls.check_required_fields(object_type, values)
         pk, sk = cls.build_pk_sk(
             key_element_enum, field_to_key_formatters, object_type, values
         )
+        if consistent_read:
+            return db.get_item_by_pk_sk(
+                table_name,
+                pk,
+                sk,
+                consistent_read=True,
+            )
         return db.get_item_by_pk_sk(table_name, pk, sk)
 
     @classmethod
@@ -147,6 +155,7 @@ class DaoHelper:
         table_name,
         object_type,
         values,
+        consistent_read=False,
     ):
         raw_object = cls.get_object(
             key_element_enum,
@@ -155,6 +164,7 @@ class DaoHelper:
             table_name,
             object_type,
             values,
+            consistent_read=consistent_read,
         )
 
         if raw_object is None:
@@ -239,23 +249,22 @@ class DaoHelper:
         versioned=False,
         only_if_new=False,
     ):
-        cls.check_required_fields(object_type, values)
-        pk, sk = cls.build_pk_sk(
-            key_element_enum, field_to_key_formatters, object_type, values
+        item = cls.build_object_item(
+            key_element_enum,
+            field_to_key_formatters,
+            object_type,
+            values,
         )
-
-        to_drop_field_keys = [k.name.lower() for k in object_type.to_drop_fields]
-        values_to_store = {
-            k: v for k, v in values.items() if k not in to_drop_field_keys
-        }
-        _logger.debug(f"Storing object {object_type} with values {values_to_store}")
+        pk = item["pk"]
+        sk = item.get("sk")
+        _logger.debug(f"Storing object {object_type} with values {item}")
 
         if versioned:
-            if "version" in values_to_store:
-                del values_to_store["version"]
-            values_to_store.pop("version", None)
-            values_to_store.pop("pk", None)
-            values_to_store.pop("sk", None)
+            values_to_store = {
+                key: value
+                for key, value in item.items()
+                if key not in ("pk", "sk", "version")
+            }
 
             _logger.debug(
                 f"Storing versioned object {object_type} with values {values_to_store}"
@@ -264,13 +273,6 @@ class DaoHelper:
                 table_name, pk, sk, values_to_store, values["version"]
             )
         else:
-            item = {
-                **values_to_store,
-                "pk": pk,
-            }
-            if sk is not None:
-                item["sk"] = sk
-
             if only_if_new:
                 db.store_new_item(
                     table_name, item, "sk"
@@ -279,6 +281,41 @@ class DaoHelper:
                 db.store_item(table_name, item)
 
         return {"pk": pk, "sk": sk}
+
+    @classmethod
+    def build_object_item(
+        cls,
+        key_element_enum,
+        field_to_key_formatters,
+        object_type,
+        values,
+    ):
+        """Build the native DynamoDB item shape used by ``store_object``.
+
+        The input mapping is not mutated. Key-derived fields configured in
+        ``to_drop_fields`` are omitted from the stored attributes and can be
+        reconstructed with ``pk_sk_fields_of_object`` after reading.
+        """
+
+        values_with_object_type = dict(values)
+        cls.check_required_fields(object_type, values_with_object_type)
+        pk, sk = cls.build_pk_sk(
+            key_element_enum,
+            field_to_key_formatters,
+            object_type,
+            values_with_object_type,
+        )
+
+        to_drop_field_keys = {key.name.lower() for key in object_type.to_drop_fields}
+        item = {
+            key: value
+            for key, value in values_with_object_type.items()
+            if key not in to_drop_field_keys and key not in ("pk", "sk")
+        }
+        item["pk"] = pk
+        if sk is not None:
+            item["sk"] = sk
+        return item
 
     @classmethod
     def delete_object(

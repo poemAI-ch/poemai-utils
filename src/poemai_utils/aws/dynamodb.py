@@ -165,13 +165,13 @@ class DynamoDB:
         if dynamodb_client is not None:
             self.dynamodb_client = dynamodb_client
         else:
-            self.dynamodb_resource = boto3.resource(
+            self.dynamodb_client = boto3.client(
                 "dynamodb", region_name=self.region_name
             )
         if dynamodb_resource is not None:
             self.dynamodb_resource = dynamodb_resource
         else:
-            self.dynamodb_client = boto3.client(
+            self.dynamodb_resource = boto3.resource(
                 "dynamodb", region_name=self.region_name
             )
 
@@ -346,13 +346,14 @@ class DynamoDB:
 
         return response
 
-    def get_item_by_pk_sk(self, table_name, pk, sk):
+    def get_item_by_pk_sk(self, table_name, pk, sk, consistent_read=False):
         response = self.get_item(
             TableName=table_name,
             Key={
                 "pk": {"S": pk},
                 "sk": {"S": sk},
             },
+            ConsistentRead=consistent_read,
         )
         if "Item" in response:
             return self.item_to_dict(response["Item"])
@@ -387,12 +388,13 @@ class DynamoDB:
                 if not db_keys_chunk:
                     break
 
-    def get_item_by_pk(self, table_name, pk):
+    def get_item_by_pk(self, table_name, pk, consistent_read=False):
         response = self.get_item(
             TableName=table_name,
             Key={
                 "pk": {"S": pk},
             },
+            ConsistentRead=consistent_read,
         )
         if "Item" in response:
             return self.item_to_dict(response["Item"])
@@ -566,7 +568,12 @@ class DynamoDB:
             yield self.item_to_dict(item)
 
     def get_item(
-        self, TableName, Key, ProjectionExpression=None, ExpressionAttributeNames=None
+        self,
+        TableName,
+        Key,
+        ProjectionExpression=None,
+        ExpressionAttributeNames=None,
+        ConsistentRead=False,
     ):
         """A proxy for boto3.dynamodb.table.get_item"""
 
@@ -576,6 +583,8 @@ class DynamoDB:
             args["ProjectionExpression"] = ProjectionExpression
         if ExpressionAttributeNames is not None:
             args["ExpressionAttributeNames"] = ExpressionAttributeNames
+        if ConsistentRead:
+            args["ConsistentRead"] = True
         response = self.dynamodb_client.get_item(**args)
 
         # check response for errors
@@ -584,6 +593,20 @@ class DynamoDB:
         else:
             _logger.debug("Got item %s, response: %s", Key, response)
 
+        return response
+
+    def transact_write_items(self, TransactItems, ClientRequestToken=None):
+        """Proxy an atomic write transaction to the low-level DynamoDB client."""
+
+        args = {"TransactItems": TransactItems}
+        if ClientRequestToken is not None:
+            args["ClientRequestToken"] = ClientRequestToken
+
+        response = self.dynamodb_client.transact_write_items(**args)
+        if response["ResponseMetadata"]["HTTPStatusCode"] != 200:
+            _logger.error("Error writing DynamoDB transaction, response: %s", response)
+        else:
+            _logger.debug("DynamoDB transaction committed, response: %s", response)
         return response
 
     def query(

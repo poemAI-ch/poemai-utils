@@ -121,6 +121,41 @@ def test_build_pk_sk():
     assert sk == "RAW_CONTENT_ID#doc456"
 
 
+def test_build_object_item_matches_store_shape_without_mutating_values():
+    values = {
+        "raw_content_id": "doc123",
+        "page": 5,
+        "paragraph_nr": 42,
+        "content": "Paragraph text",
+    }
+    original_values = dict(values)
+
+    item = DaoHelper.build_object_item(
+        KeyElement,
+        FIELD_TO_KEY_FORMATTERS,
+        ObjectTypeKeys.PARAGRAPH,
+        values,
+    )
+
+    assert values == original_values
+    assert item == {
+        "content": "Paragraph text",
+        "pk": "RAW_CONTENT_ID#doc123",
+        "sk": "PARAGRAPH##PAGE#0005#PARAGRAPH_NR#000042",
+    }
+
+    mock_db = MagicMock()
+    DaoHelper.store_object(
+        KeyElement,
+        FIELD_TO_KEY_FORMATTERS,
+        mock_db,
+        "test_table",
+        ObjectTypeKeys.PARAGRAPH,
+        values,
+    )
+    mock_db.store_item.assert_called_once_with("test_table", item)
+
+
 def test_store_object():
     # Create a mock DB object
     mock_db = MagicMock()
@@ -298,3 +333,36 @@ def test_get_object_with_pk_sk_fields():
     )
 
     assert result is None
+
+
+def test_get_object_with_pk_sk_fields_requests_consistent_read():
+    mock_db = MagicMock()
+    mock_db.get_item_by_pk_sk.return_value = {
+        "pk": "RAW_CONTENT_ID#doc123",
+        "sk": "PARAGRAPH##PAGE#0005#PARAGRAPH_NR#000042",
+        "content": "Paragraph text",
+    }
+
+    result = DaoHelper.get_object_with_pk_sk_fields(
+        KeyElement,
+        FIELD_TO_KEY_FORMATTERS,
+        KEY_TO_FIELD_FORMATTERS,
+        mock_db,
+        "test_table",
+        ObjectTypeKeys.PARAGRAPH,
+        {
+            "raw_content_id": "doc123",
+            "page": 5,
+            "paragraph_nr": 42,
+        },
+        consistent_read=True,
+    )
+
+    mock_db.get_item_by_pk_sk.assert_called_once_with(
+        "test_table",
+        "RAW_CONTENT_ID#doc123",
+        "PARAGRAPH##PAGE#0005#PARAGRAPH_NR#000042",
+        consistent_read=True,
+    )
+    assert result["page"] == 5
+    assert result["paragraph_nr"] == 42

@@ -321,3 +321,80 @@ def test_client_error_is_properly_imported():
     }
     error = ImportedClientError(error_response, "TestOperation")
     assert error.response["Error"]["Code"] == "TestError"
+
+
+def test_get_item_by_pk_sk_forwards_consistent_read(dynamodb, mock_dynamodb_client):
+    mock_dynamodb_client.get_item.return_value = {
+        "ResponseMetadata": {"HTTPStatusCode": 200}
+    }
+
+    assert (
+        dynamodb.get_item_by_pk_sk(
+            "test_table",
+            "test_pk",
+            "test_sk",
+            consistent_read=True,
+        )
+        is None
+    )
+
+    mock_dynamodb_client.get_item.assert_called_once_with(
+        TableName="test_table",
+        Key={"pk": {"S": "test_pk"}, "sk": {"S": "test_sk"}},
+        ConsistentRead=True,
+    )
+
+
+def test_transact_write_items_forwards_token(dynamodb, mock_dynamodb_client):
+    transaction_items = [
+        {
+            "Put": {
+                "TableName": "test_table",
+                "Item": {"pk": {"S": "test_pk"}, "sk": {"S": "test_sk"}},
+            }
+        }
+    ]
+    mock_dynamodb_client.transact_write_items.return_value = {
+        "ResponseMetadata": {"HTTPStatusCode": 200}
+    }
+
+    result = dynamodb.transact_write_items(
+        transaction_items,
+        ClientRequestToken="stable-request-token-1234567890",
+    )
+
+    assert result["ResponseMetadata"]["HTTPStatusCode"] == 200
+    mock_dynamodb_client.transact_write_items.assert_called_once_with(
+        TransactItems=transaction_items,
+        ClientRequestToken="stable-request-token-1234567890",
+    )
+
+
+def test_transact_write_items_preserves_client_error(dynamodb, mock_dynamodb_client):
+    error_response = {
+        "Error": {
+            "Code": "TransactionCanceledException",
+            "Message": "Transaction cancelled",
+        },
+        "ResponseMetadata": {"HTTPStatusCode": 400},
+    }
+    expected_error = ClientError(error_response, "TransactWriteItems")
+    mock_dynamodb_client.transact_write_items.side_effect = expected_error
+
+    with pytest.raises(ClientError) as exc_info:
+        dynamodb.transact_write_items(
+            [
+                {
+                    "ConditionCheck": {
+                        "TableName": "test_table",
+                        "Key": {
+                            "pk": {"S": "test_pk"},
+                            "sk": {"S": "test_sk"},
+                        },
+                        "ConditionExpression": "attribute_exists(pk)",
+                    }
+                }
+            ]
+        )
+
+    assert exc_info.value is expected_error
