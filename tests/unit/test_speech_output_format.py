@@ -1,12 +1,8 @@
 import pytest
-
 from poemai_utils.audio import (
-    DEFAULT_OPENAI_SPEECH_MODEL,
     DEFAULT_SPEECH_OUTPUT_FORMAT,
-    OPENAI_SPEECH_MODEL,
-    resolve_openai_speech_model_key,
-    resolve_speech_output_format,
     SpeechOutputFormat,
+    resolve_speech_output_format,
 )
 
 
@@ -65,8 +61,12 @@ def test_by_response_format_unknown_raises_value_error():
 
 
 def test_resolve_accepts_enum_member():
-    assert resolve_speech_output_format(SpeechOutputFormat.MP3) == SpeechOutputFormat.MP3
-    assert resolve_speech_output_format(SpeechOutputFormat.OPUS) == SpeechOutputFormat.OPUS
+    assert (
+        resolve_speech_output_format(SpeechOutputFormat.MP3) == SpeechOutputFormat.MP3
+    )
+    assert (
+        resolve_speech_output_format(SpeechOutputFormat.OPUS) == SpeechOutputFormat.OPUS
+    )
 
 
 def test_resolve_accepts_case_insensitive_string():
@@ -101,13 +101,6 @@ def test_resolve_rejects_int():
 
 
 def test_all_iteration_1_and_2_exports():
-    from poemai_utils.audio import (
-        DEFAULT_OPENAI_SPEECH_MODEL,
-        DEFAULT_SPEECH_OUTPUT_FORMAT,
-        OPENAI_SPEECH_MODEL,
-        resolve_openai_speech_model_key,
-        resolve_speech_output_format,
-        SpeechOutputFormat,
-    )
+    from poemai_utils.audio import DEFAULT_OPENAI_SPEECH_MODEL, OPENAI_SPEECH_MODEL
 
-    assert DEFAULT_OPENAI_SPEECH_MODEL == OPENAI_SPEECH_MODEL.TTS_1_HD
+    assert DEFAULT_OPENAI_SPEECH_MODEL == OPENAI_SPEECH_MODEL.GPT_4O_MINI_TTS

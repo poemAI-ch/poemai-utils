@@ -4,6 +4,7 @@ from poemai_utils.enum_utils import add_enum_attrs, add_enum_repr_attr
 
 
 class OPENAI_SPEECH_MODEL(str, Enum):
+    GPT_4O_MINI_TTS = "gpt-4o-mini-tts"
     TTS_1 = "tts-1"
     TTS_1_HD = "tts-1-hd"
 
@@ -22,6 +23,12 @@ add_enum_repr_attr(OPENAI_SPEECH_MODEL)
 
 add_enum_attrs(
     {
+        OPENAI_SPEECH_MODEL.GPT_4O_MINI_TTS: {
+            "model_key": "gpt-4o-mini-tts",
+            "supports_instructions": True,
+            "supports_speed": True,
+            "deprecated": False,
+        },
         OPENAI_SPEECH_MODEL.TTS_1: {
             "model_key": "tts-1",
             "supports_instructions": False,
@@ -38,7 +45,7 @@ add_enum_attrs(
 )
 
 
-DEFAULT_OPENAI_SPEECH_MODEL = OPENAI_SPEECH_MODEL.TTS_1_HD
+DEFAULT_OPENAI_SPEECH_MODEL = OPENAI_SPEECH_MODEL.GPT_4O_MINI_TTS
 
 
 def resolve_openai_speech_model_key(model):

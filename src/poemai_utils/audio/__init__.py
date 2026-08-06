@@ -1,3 +1,18 @@
+from poemai_utils.audio.errors import (
+    AuthenticationError,
+    ConnectionError,
+    InvalidRequestError,
+    ProviderError,
+    ProviderServerError,
+    RateLimitError,
+    TextToSpeechAuthenticationError,
+    TextToSpeechConnectionError,
+    TextToSpeechError,
+    TextToSpeechInvalidRequestError,
+    TextToSpeechProviderError,
+    TextToSpeechProviderServerError,
+    TextToSpeechRateLimitError,
+)
 from poemai_utils.audio.openai_speech_model import (
     DEFAULT_OPENAI_SPEECH_MODEL,
     OPENAI_SPEECH_MODEL,
@@ -8,6 +23,11 @@ from poemai_utils.audio.speech_output_format import (
     SpeechOutputFormat,
     resolve_speech_output_format,
 )
+from poemai_utils.audio.text_to_speech import (
+    OpenAITextToSpeech,
+    TextToSpeechRequest,
+    TextToSpeechResult,
+)
 
 __all__ = [
     "DEFAULT_OPENAI_SPEECH_MODEL",
@@ -16,4 +36,20 @@ __all__ = [
     "DEFAULT_SPEECH_OUTPUT_FORMAT",
     "SpeechOutputFormat",
     "resolve_speech_output_format",
+    "TextToSpeechRequest",
+    "TextToSpeechResult",
+    "OpenAITextToSpeech",
+    "TextToSpeechError",
+    "TextToSpeechInvalidRequestError",
+    "TextToSpeechAuthenticationError",
+    "TextToSpeechRateLimitError",
+    "TextToSpeechConnectionError",
+    "TextToSpeechProviderServerError",
+    "TextToSpeechProviderError",
+    "InvalidRequestError",
+    "AuthenticationError",
+    "RateLimitError",
+    "ConnectionError",
+    "ProviderServerError",
+    "ProviderError",
 ]

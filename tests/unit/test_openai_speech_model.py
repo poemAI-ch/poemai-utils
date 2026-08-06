@@ -6,8 +6,15 @@ from poemai_utils.audio import (
 )
 
 
-def test_default_is_tts_1_hd():
-    assert DEFAULT_OPENAI_SPEECH_MODEL == OPENAI_SPEECH_MODEL.TTS_1_HD
+def test_default_is_gpt_4o_mini_tts():
+    assert DEFAULT_OPENAI_SPEECH_MODEL == OPENAI_SPEECH_MODEL.GPT_4O_MINI_TTS
+
+
+def test_gpt_4o_mini_tts_metadata():
+    assert OPENAI_SPEECH_MODEL.GPT_4O_MINI_TTS.model_key == "gpt-4o-mini-tts"
+    assert OPENAI_SPEECH_MODEL.GPT_4O_MINI_TTS.supports_instructions is True
+    assert OPENAI_SPEECH_MODEL.GPT_4O_MINI_TTS.supports_speed is True
+    assert OPENAI_SPEECH_MODEL.GPT_4O_MINI_TTS.deprecated is False
 
 
 def test_tts_1_metadata():
@@ -66,6 +73,6 @@ def test_imports_from_poemai_utils_audio():
         resolve_openai_speech_model_key,
     )
 
-    assert DEFAULT_OPENAI_SPEECH_MODEL == OPENAI_SPEECH_MODEL.TTS_1_HD
+    assert DEFAULT_OPENAI_SPEECH_MODEL == OPENAI_SPEECH_MODEL.GPT_4O_MINI_TTS
     assert OPENAI_SPEECH_MODEL == OPENAI_SPEECH_MODEL
     assert resolve_openai_speech_model_key == resolve_openai_speech_model_key
