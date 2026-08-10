@@ -2,8 +2,6 @@ name: Publish Python Package to PyPI
 
 on:
   push:
-    branches:
-      - main # Or replace with the branch you use for releases
     tags:
       - "v*" # Trigger workflow on tags starting with 'v'
 
