@@ -88,6 +88,36 @@ def test_emulator_transact_write_items_commits_supported_operations():
     assert db.get_item_by_pk_sk(table_name, "config", "active")["active"] is True
 
 
+def test_emulator_transaction_update_supports_remove_clause():
+    db = DynamoDBEmulator(None, allowed_reserved_keywords=["state"])
+    table_name = "messaging"
+    db.store_item(
+        table_name,
+        {"pk": "route", "sk": "current", "state": "processing", "lease": "later"},
+    )
+
+    db.transact_write_items(
+        [
+            {
+                "Update": {
+                    "TableName": table_name,
+                    "Key": _item({"pk": "route", "sk": "current"}),
+                    "UpdateExpression": "SET #state = :ready REMOVE #lease",
+                    "ExpressionAttributeNames": {
+                        "#state": "state",
+                        "#lease": "lease",
+                    },
+                    "ExpressionAttributeValues": {":ready": {"S": "ready"}},
+                }
+            }
+        ]
+    )
+
+    stored = db.get_item_by_pk_sk(table_name, "route", "current")
+    assert stored["state"] == "ready"
+    assert "lease" not in stored
+
+
 def test_emulator_transact_write_items_rolls_back_on_condition_failure():
     db = DynamoDBEmulator(
         None,

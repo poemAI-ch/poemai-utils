@@ -1045,23 +1045,43 @@ class DynamoDBEmulator:
         expression_attribute_names,
         expression_attribute_values,
     ):
-        if not update_expression or not update_expression.upper().startswith("SET "):
+        if not update_expression:
             raise NotImplementedError(
                 f"Unsupported transaction update: {update_expression}"
             )
 
         names = expression_attribute_names or {}
         values = expression_attribute_values or {}
-        for assignment in update_expression[4:].split(","):
-            match = re.fullmatch(r"\s*([^\s]+)\s*=\s*(:[A-Za-z0-9_]+)\s*", assignment)
-            if not match:
-                raise NotImplementedError(
-                    f"Unsupported transaction assignment: {assignment}"
+        clauses = re.split(
+            r"\s+(?=REMOVE\s)", update_expression, maxsplit=1, flags=re.I
+        )
+        set_clause = clauses[0]
+        remove_clause = clauses[1] if len(clauses) == 2 else None
+
+        if set_clause.upper().startswith("SET "):
+            for assignment in set_clause[4:].split(","):
+                match = re.fullmatch(
+                    r"\s*([^\s]+)\s*=\s*(:[A-Za-z0-9_]+)\s*", assignment
                 )
-            attribute_name = cls._transaction_attribute_name(match.group(1), names)
-            item[attribute_name] = cls._transaction_attribute_value(
-                match.group(2), values
+                if not match:
+                    raise NotImplementedError(
+                        f"Unsupported transaction assignment: {assignment}"
+                    )
+                attribute_name = cls._transaction_attribute_name(match.group(1), names)
+                item[attribute_name] = cls._transaction_attribute_value(
+                    match.group(2), values
+                )
+        elif set_clause.upper().startswith("REMOVE "):
+            remove_clause = set_clause
+        else:
+            raise NotImplementedError(
+                f"Unsupported transaction update: {update_expression}"
             )
+
+        if remove_clause is not None:
+            for token in remove_clause[7:].split(","):
+                attribute_name = cls._transaction_attribute_name(token.strip(), names)
+                item.pop(attribute_name, None)
         return item
 
     @staticmethod
