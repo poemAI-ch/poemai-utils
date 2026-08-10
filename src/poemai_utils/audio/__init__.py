@@ -25,6 +25,7 @@ from poemai_utils.audio.speech_output_format import (
 )
 from poemai_utils.audio.text_to_speech import (
     OpenAITextToSpeech,
+    OpenAITextToSpeechLean,
     TextToSpeechRequest,
     TextToSpeechResult,
 )
@@ -39,6 +40,7 @@ __all__ = [
     "TextToSpeechRequest",
     "TextToSpeechResult",
     "OpenAITextToSpeech",
+    "OpenAITextToSpeechLean",
     "TextToSpeechError",
     "TextToSpeechInvalidRequestError",
     "TextToSpeechAuthenticationError",

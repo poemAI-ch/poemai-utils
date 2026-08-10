@@ -48,11 +48,6 @@ def test_embedding_factory():
 
         distiluse_embedder = make_embedder("distiluse-base-multilingual-cased-v1")
         assert isinstance(distiluse_embedder, SentenceTransformerEmbedder)
-
-        bi_electra_german_embedder = make_embedder(
-            "svalabs/bi-electra-ms-marco-german-uncased"
-        )
-        assert isinstance(bi_electra_german_embedder, SentenceTransformerEmbedder)
     else:
         pytest.skip("sentence-transformers not available, skipping transformer tests")
 

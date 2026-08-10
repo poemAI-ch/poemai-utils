@@ -2,5 +2,11 @@
 
 from poemai_utils.audio.contracts import TextToSpeechRequest, TextToSpeechResult
 from poemai_utils.audio.openai_text_to_speech import OpenAITextToSpeech
+from poemai_utils.audio.openai_text_to_speech_lean import OpenAITextToSpeechLean
 
-__all__ = ["TextToSpeechRequest", "TextToSpeechResult", "OpenAITextToSpeech"]
+__all__ = [
+    "TextToSpeechRequest",
+    "TextToSpeechResult",
+    "OpenAITextToSpeech",
+    "OpenAITextToSpeechLean",
+]
