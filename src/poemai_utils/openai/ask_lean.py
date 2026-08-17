@@ -5,9 +5,35 @@ from typing import Any, Dict, List, Optional, Union
 
 import requests
 from box import Box
-from poemai_utils.openai.openai_model import OPENAI_MODEL
+from poemai_utils.openai.openai_model import (
+    GPT_5_6_REASONING_EFFORTS,
+    OPENAI_MODEL,
+    OPENAI_TEXT_VERBOSITY_LEVELS,
+)
 
 _logger = logging.getLogger(__name__)
+
+
+def _validate_reasoning_effort(reasoning_effort):
+    if reasoning_effort not in GPT_5_6_REASONING_EFFORTS:
+        allowed = ", ".join(sorted(GPT_5_6_REASONING_EFFORTS))
+        raise ValueError(
+            f"reasoning_effort must be one of {allowed}, got {reasoning_effort!r}"
+        )
+
+
+def _validate_verbosity(verbosity):
+    if verbosity not in OPENAI_TEXT_VERBOSITY_LEVELS:
+        allowed = ", ".join(sorted(OPENAI_TEXT_VERBOSITY_LEVELS))
+        raise ValueError(f"verbosity must be one of {allowed}, got {verbosity!r}")
+
+
+def _model_supports_temperature(model):
+    try:
+        model_enum = OPENAI_MODEL(model)
+    except ValueError:
+        return True
+    return bool(getattr(model_enum, "supports_temperature", True))
 
 
 class PydanticLikeBox(Box):
@@ -49,6 +75,8 @@ class AskLean:
         json_mode=False,  # still just a placeholder
         response_format=None,
         additional_args=None,
+        reasoning_effort=None,
+        verbosity=None,
     ):
         use_model = model if model is not None else self.model
 
@@ -57,7 +85,9 @@ class AskLean:
             "Authorization": f"Bearer {self.openai_api_key}",
         }
 
-        data = {"model": use_model, "messages": messages, "temperature": temperature}
+        data = {"model": use_model, "messages": messages}
+        if _model_supports_temperature(use_model):
+            data["temperature"] = temperature
 
         # Handle poemai_max_tokens - platform-agnostic token limiting
         # For Chat Completions (local or OpenAI), map to max_tokens
@@ -90,6 +120,20 @@ class AskLean:
 
         if additional_args is not None:
             data.update(additional_args)
+
+        if reasoning_effort is not None:
+            _validate_reasoning_effort(reasoning_effort)
+            if "reasoning_effort" in data:
+                _logger.warning(
+                    "reasoning_effort overrides the existing reasoning_effort value"
+                )
+            data["reasoning_effort"] = reasoning_effort
+
+        if verbosity is not None:
+            _validate_verbosity(verbosity)
+            if "verbosity" in data:
+                _logger.warning("verbosity overrides the existing verbosity value")
+            data["verbosity"] = verbosity
 
         for attempt in range(self.max_retries):
             try:
@@ -165,6 +209,8 @@ class AskLean:
         tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
         response_format: Optional[Dict[str, Any]] = None,
         additional_args: Optional[Dict[str, Any]] = None,
+        reasoning_effort: Optional[str] = None,
+        verbosity: Optional[str] = None,
     ) -> PydanticLikeBox:
         """
         Send a request using the Responses API instead of Chat Completions API.
@@ -207,6 +253,8 @@ class AskLean:
             tool_choice=tool_choice,
             response_format=response_format,
             additional_args=additional_args,
+            reasoning_effort=reasoning_effort,
+            verbosity=verbosity,
         )
 
         # Convert response back to Chat Completions format for compatibility

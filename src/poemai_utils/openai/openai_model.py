@@ -3,6 +3,9 @@ from enum import Enum
 from poemai_utils.ai_model import AIApiType, AIModel
 from poemai_utils.enum_utils import add_enum_attrs, add_enum_repr_attr
 
+GPT_5_6_REASONING_EFFORTS = frozenset({"none", "low", "medium", "high", "xhigh", "max"})
+OPENAI_TEXT_VERBOSITY_LEVELS = frozenset({"low", "medium", "high"})
+
 
 class OPENAI_MODEL(str, Enum):
     GPT_4_1 = "gpt-4.1"
@@ -51,6 +54,10 @@ class OPENAI_MODEL(str, Enum):
     GPT_5_4_MINI_2026_03_17 = "gpt-5.4-mini-2026-03-17"
     GPT_5_4_NANO = "gpt-5.4-nano"
     GPT_5_4_NANO_2026_03_17 = "gpt-5.4-nano-2026-03-17"
+    GPT_5_6 = "gpt-5.6"
+    GPT_5_6_LUNA = "gpt-5.6-luna"
+    GPT_5_6_TERRA = "gpt-5.6-terra"
+    GPT_5_6_SOL = "gpt-5.6-sol"
 
     @classmethod
     def by_model_key(cls, model_key):
@@ -528,6 +535,46 @@ add_enum_attrs(
             "model_key": "gpt-5.4-nano-2026-03-17",
             "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
             "expensive": False,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+            "supports_reasoning": True,
+        },
+        OPENAI_MODEL.GPT_5_6: {
+            "model_key": "gpt-5.6",
+            "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
+            "expensive": True,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+            "supports_reasoning": True,
+        },
+        OPENAI_MODEL.GPT_5_6_LUNA: {
+            "model_key": "gpt-5.6-luna",
+            "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
+            "expensive": False,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+            "supports_reasoning": True,
+        },
+        OPENAI_MODEL.GPT_5_6_TERRA: {
+            "model_key": "gpt-5.6-terra",
+            "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
+            "expensive": True,
+            "supports_vision": True,
+            "embeddings_dimensions": None,
+            "requires_max_completion_tokens": True,
+            "supports_temperature": False,
+            "supports_reasoning": True,
+        },
+        OPENAI_MODEL.GPT_5_6_SOL: {
+            "model_key": "gpt-5.6-sol",
+            "api_types": [AIApiType.CHAT_COMPLETIONS, AIApiType.RESPONSES],
+            "expensive": True,
             "supports_vision": True,
             "embeddings_dimensions": None,
             "requires_max_completion_tokens": True,

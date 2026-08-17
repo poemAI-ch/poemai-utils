@@ -55,3 +55,4 @@ MANIFEST
 .python-version
 .ai_code_editor_tasks.json
 .aider*
+.playwright-mcp

@@ -3,13 +3,18 @@ name: Publish Python Package to PyPI
 on:
   push:
     tags:
-      - "v*" # Trigger workflow on tags starting with 'v'
+      - "v*"
 
 permissions:
-  id-token: write
+  contents: read
+
+concurrency:
+  group: pypi-release
+  cancel-in-progress: false
 
 jobs:
   test:
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -27,15 +32,12 @@ jobs:
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install setuptools wheel
-          # Install the package in development mode with test dependencies
-          pip install -e .[testing]
-          # Install additional test dependencies that aren't hard requirements
-          pip install boto3 python-dateutil pytest-asyncio boto3 numpy tiktoken flake8
+          python -m pip install setuptools wheel
+          python -m pip install -e .[testing]
+          python -m pip install boto3 python-dateutil pytest-asyncio numpy tiktoken flake8
 
       - name: Check for unused imports
         run: |
-          # Check for unused imports (excluding simple.py files which are meant for import convenience)
           flake8 --select=F401 --exclude="src/*/simple.py" src/
 
       - name: Run unit tests
@@ -43,8 +45,12 @@ jobs:
           pytest tests/unit -v --tb=short
 
   build:
-    needs: test # This job will only run if the test job succeeds
+    needs: test
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v7
@@ -52,18 +58,115 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v6
         with:
-          python-version: "3.x"
+          python-version: "3.12"
 
-      - name: Install dependencies
+      - name: Validate release tag and version
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(tr -d '[:space:]' < VERSION.txt)"
+          tag_version="${GITHUB_REF_NAME#v}"
+
+          [[ "$GITHUB_REF_NAME" == v* ]] || {
+            echo "Publishing is only allowed for v* tags."
+            exit 1
+          }
+          [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "VERSION.txt must contain X.Y.Z, found: $version"
+            exit 1
+          }
+          [[ "$version" == "$tag_version" ]] || {
+            echo "Tag $GITHUB_REF_NAME does not match VERSION.txt ($version)."
+            exit 1
+          }
+
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Install build and validation tools
         run: |
           python -m pip install --upgrade pip
-          pip install setuptools wheel
+          python -m pip install build twine
 
-      - name: Build distribution package
-        run: python setup.py sdist bdist_wheel
+      - name: Build distributions
+        run: |
+          rm -rf build dist
+          python -m build
+
+      - name: Check distributions
+        run: python -m twine check dist/*
+
+      - name: Upload distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: poemai-utils-${{ steps.version.outputs.version }}
+          path: dist/*
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Download tested distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: poemai-utils-${{ needs.build.outputs.version }}
+          path: dist
 
       - name: Publish package
         uses: pypa/gh-action-pypi-publish@release/v1
         with:
-          user: __token__
-          password: ${{ secrets.PYPI_API_TOKEN }}
+          packages-dir: dist
+
+      - name: Verify published version
+        shell: bash
+        env:
+          RELEASE_VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          for attempt in {1..12}; do
+            if python - "$RELEASE_VERSION" <<'PY'
+          import json
+          import sys
+          import urllib.request
+
+          expected = sys.argv[1]
+          with urllib.request.urlopen(
+              "https://pypi.org/pypi/poemai-utils/json", timeout=15
+          ) as response:
+              releases = json.load(response)["releases"]
+
+          if not releases.get(expected):
+              raise SystemExit(f"PyPI does not list poemai-utils=={expected}")
+          PY
+            then
+              break
+            fi
+
+            if [[ "$attempt" == 12 ]]; then
+              echo "Timed out waiting for poemai-utils==$RELEASE_VERSION on PyPI."
+              exit 1
+            fi
+            sleep 10
+          done
+
+          python -m pip install --disable-pip-version-check --force-reinstall \
+            --no-cache-dir --no-deps "poemai-utils==$RELEASE_VERSION"
+          python - "$RELEASE_VERSION" <<'PY'
+          import importlib.metadata
+          import sys
+
+          expected = sys.argv[1]
+          installed = importlib.metadata.version("poemai-utils")
+          assert installed == expected, (installed, expected)
+          PY

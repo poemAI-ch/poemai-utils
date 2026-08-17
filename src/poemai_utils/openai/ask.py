@@ -8,12 +8,30 @@ import openai
 from poemai_utils.ai_model import AIApiType
 from poemai_utils.basic_types_utils import linebreak, short_display
 from poemai_utils.openai.llm_answer_cache import LLMAnswerCache
-from poemai_utils.openai.openai_model import OPENAI_MODEL
+from poemai_utils.openai.openai_model import (
+    GPT_5_6_REASONING_EFFORTS,
+    OPENAI_MODEL,
+    OPENAI_TEXT_VERBOSITY_LEVELS,
+)
 from poemai_utils.utils_config import get_config_by_key
 
 _logger = logging.getLogger(__name__)
 
 DISABLE_GPT_LOG = get_config_by_key("DISABLE_GPT_LOG")
+
+
+def _validate_reasoning_effort(reasoning_effort):
+    if reasoning_effort not in GPT_5_6_REASONING_EFFORTS:
+        allowed = ", ".join(sorted(GPT_5_6_REASONING_EFFORTS))
+        raise ValueError(
+            f"reasoning_effort must be one of {allowed}, got {reasoning_effort!r}"
+        )
+
+
+def _validate_verbosity(verbosity):
+    if verbosity not in OPENAI_TEXT_VERBOSITY_LEVELS:
+        allowed = ", ".join(sorted(OPENAI_TEXT_VERBOSITY_LEVELS))
+        raise ValueError(f"verbosity must be one of {allowed}, got {verbosity!r}")
 
 
 def current_unix_time():
@@ -123,6 +141,8 @@ class Ask:
         json_mode=False,
         additional_args=None,
         structured_json_schema=None,
+        reasoning_effort=None,
+        verbosity=None,
     ):
         if not AIApiType.CHAT_COMPLETIONS in self.model.api_types:
             raise ValueError(f"Model {self.model} does not support chat completions")
@@ -156,6 +176,20 @@ class Ask:
                 args["temperature"] = temperature
         if additional_args is not None:
             args.update(additional_args)
+
+        if reasoning_effort is not None:
+            _validate_reasoning_effort(reasoning_effort)
+            if "reasoning_effort" in args:
+                _logger.warning(
+                    "reasoning_effort overrides the existing reasoning_effort value"
+                )
+            args["reasoning_effort"] = reasoning_effort
+
+        if verbosity is not None:
+            _validate_verbosity(verbosity)
+            if "verbosity" in args:
+                _logger.warning("verbosity overrides the existing verbosity value")
+            args["verbosity"] = verbosity
 
         try:
             # Handle poemai_max_tokens - platform-agnostic token limiting
@@ -253,6 +287,8 @@ class Ask:
         metadata=None,
         json_mode=False,
         additional_args=None,
+        reasoning_effort=None,
+        verbosity=None,
     ):
         if metadata is None:
             metadata = {}
@@ -318,6 +354,8 @@ class Ask:
                         messages=messages,
                         json_mode=json_mode,
                         additional_args=additional_args,
+                        reasoning_effort=reasoning_effort,
+                        verbosity=verbosity,
                     )
                 else:
                     # For models that support temperature, pass it normally
@@ -332,6 +370,8 @@ class Ask:
                         messages,
                         json_mode=json_mode,
                         additional_args=additional_args,
+                        reasoning_effort=reasoning_effort,
+                        verbosity=verbosity,
                     )
             elif AIApiType.COMPLETIONS in self.model.api_types:
                 answer = self.ask_completion(
@@ -383,6 +423,8 @@ class Ask:
         suffix=None,
         system_prompt=None,
         metadata=None,
+        reasoning_effort=None,
+        verbosity=None,
     ):
         if not self.model.supports_vision:
             raise ValueError(f"Model {self.model} does not support vision")
@@ -418,6 +460,8 @@ class Ask:
             suffix,
             system_prompt,
             messages,
+            reasoning_effort=reasoning_effort,
+            verbosity=verbosity,
         )
 
         return answer
@@ -436,6 +480,8 @@ class Ask:
         system_prompt=None,
         messages=None,
         metadata=None,
+        reasoning_effort=None,
+        verbosity=None,
     ):
         if metadata is None:
             metadata = {}
@@ -478,6 +524,8 @@ class Ask:
                     max_tokens,
                     stop,
                     messages,
+                    reasoning_effort=reasoning_effort,
+                    verbosity=verbosity,
                 ):
                     _logger.debug("part: %s", part)
                     part_content = part.get("content")
@@ -613,6 +661,8 @@ class AsyncOpenai:
         max_tokens=600,
         stop=None,
         messages=None,
+        reasoning_effort=None,
+        verbosity=None,
     ):
 
         headers = {
@@ -638,6 +688,14 @@ class AsyncOpenai:
             data["temperature"] = temperature
         if stop is not None:
             data["stop"] = stop
+
+        if reasoning_effort is not None:
+            _validate_reasoning_effort(reasoning_effort)
+            data["reasoning_effort"] = reasoning_effort
+
+        if verbosity is not None:
+            _validate_verbosity(verbosity)
+            data["verbosity"] = verbosity
 
         if self.model.requires_max_completion_tokens:
             data["max_completion_tokens"] = max_tokens

@@ -77,6 +77,36 @@ print(response3.output_text)
 
 ## API Reference
 
+### GPT-5.6 models and controls
+
+The OpenAI model registry exposes the GPT-5.6 family through these model keys:
+
+```python
+from poemai_utils.openai import AskResponses
+
+AskResponses.OPENAI_MODEL.GPT_5_6_LUNA  # gpt-5.6-luna
+AskResponses.OPENAI_MODEL.GPT_5_6_TERRA  # gpt-5.6-terra
+AskResponses.OPENAI_MODEL.GPT_5_6_SOL    # gpt-5.6-sol
+```
+
+The `gpt-5.6` alias is also available as `GPT_5_6`. GPT-5.6 models support
+reasoning efforts `none`, `low`, `medium`, `high`, `xhigh`, and `max`. The
+first-class `reasoning_effort` and `verbosity` arguments map to the Responses
+API request shape:
+
+```python
+response = ask.ask(
+    input="Reply with a concise status message.",
+    model="gpt-5.6-terra",
+    reasoning_effort="low",
+    verbosity="low",
+)
+```
+
+`reasoning_effort` becomes `reasoning.effort`, while `verbosity` becomes
+`text.verbosity`. Advanced GPT-5.6 request options can still be passed through
+`additional_args`.
+
 ### AskResponses Class
 
 #### Constructor
@@ -100,11 +130,13 @@ The main method for making requests to the Responses API.
 
 ```python
 ask(
-    input_data: Union[str, List[Dict[str, Any]]],
+    input: Union[str, List[Dict[str, Any]]],
     model: Optional[str] = None,
     instructions: Optional[str] = None,
     temperature: float = 0,
-    max_tokens: Optional[int] = 600,
+    max_tokens: Optional[int] = None,
+    max_output_tokens: Optional[int] = None,
+    poemai_max_tokens: Optional[int] = None,
     stop: Optional[Union[str, List[str]]] = None,
     tools: Optional[List[Dict[str, Any]]] = None,
     tool_choice: Optional[Union[str, Dict[str, Any]]] = None,
@@ -113,12 +145,15 @@ ask(
     store: Optional[bool] = None,
     previous_response_id: Optional[str] = None,
     include: Optional[List[str]] = None,
+    reasoning: Optional[Dict[str, Any]] = None,
+    reasoning_effort: Optional[str] = None,
+    verbosity: Optional[str] = None,
     additional_args: Optional[Dict[str, Any]] = None,
 ) -> Union[PydanticLikeBox, Any]
 ```
 
 **Parameters:**
-- `input_data`: The input to the model (string, list of content objects, or conversation)
+- `input`: The input to the model (string, list of content objects, or conversation)
 - `instructions`: System instructions (replaces system messages)
 - `model`: Model to use (overrides instance default)
 - `temperature`: Sampling temperature (0-2)
@@ -131,6 +166,9 @@ ask(
 - `store`: Whether to store conversation state (default: True)
 - `previous_response_id`: ID of previous response for stateful conversations
 - `include`: Additional data to include (e.g., ["reasoning.encrypted_content"])
+- `reasoning`: Raw reasoning configuration for advanced use cases
+- `reasoning_effort`: Convenience reasoning level (`none`, `low`, `medium`, `high`, `xhigh`, or `max`)
+- `verbosity`: Output verbosity (`low`, `medium`, or `high`)
 - `additional_args`: Additional API parameters
 
 ##### ask_simple()

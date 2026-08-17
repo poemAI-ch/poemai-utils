@@ -6,9 +6,27 @@ from typing import Any, Dict, List, Optional, Union
 
 import requests
 from box import Box
-from poemai_utils.openai.openai_model import OPENAI_MODEL
+from poemai_utils.openai.openai_model import (
+    GPT_5_6_REASONING_EFFORTS,
+    OPENAI_MODEL,
+    OPENAI_TEXT_VERBOSITY_LEVELS,
+)
 
 _logger = logging.getLogger(__name__)
+
+
+def _validate_reasoning_effort(reasoning_effort: str) -> None:
+    if reasoning_effort not in GPT_5_6_REASONING_EFFORTS:
+        allowed = ", ".join(sorted(GPT_5_6_REASONING_EFFORTS))
+        raise ValueError(
+            f"reasoning_effort must be one of {allowed}, got {reasoning_effort!r}"
+        )
+
+
+def _validate_verbosity(verbosity: str) -> None:
+    if verbosity not in OPENAI_TEXT_VERBOSITY_LEVELS:
+        allowed = ", ".join(sorted(OPENAI_TEXT_VERBOSITY_LEVELS))
+        raise ValueError(f"verbosity must be one of {allowed}, got {verbosity!r}")
 
 
 class PydanticLikeBox(Box):
@@ -148,6 +166,8 @@ class AskResponses:
         reasoning: Optional[Dict[str, Any]] = None,
         additional_args: Optional[Dict[str, Any]] = None,
         parallel_tool_calls: Optional[bool] = None,
+        reasoning_effort: Optional[str] = None,
+        verbosity: Optional[str] = None,
     ) -> Union[PydanticLikeBox, Any]:
         """
         Send a request to OpenAI's Responses API.
@@ -173,6 +193,8 @@ class AskResponses:
             include: Additional data to include in response (e.g., ["reasoning.encrypted_content"])
             reasoning: Reasoning configuration for reasoning-capable models (e.g., {"effort": "medium"})
             additional_args: Additional arguments to pass to the API
+            reasoning_effort: Convenience setting mapped to reasoning.effort
+            verbosity: Convenience setting mapped to text.verbosity
 
         Returns:
             Response object with output_text attribute and id for stateful conversations
@@ -284,7 +306,45 @@ class AskResponses:
                 )
 
         if additional_args is not None:
+            additional_args = dict(additional_args)
+            additional_text = additional_args.pop("text", None)
+            if isinstance(additional_text, dict):
+                text_config = data.get("text", {})
+                if not isinstance(text_config, dict):
+                    text_config = {}
+                data["text"] = {**text_config, **additional_text}
+            elif additional_text is not None:
+                data["text"] = additional_text
             data.update(additional_args)
+
+        if reasoning_effort is not None:
+            _validate_reasoning_effort(reasoning_effort)
+            if self._model_supports_reasoning(use_model):
+                reasoning_config = data.get("reasoning", {})
+                if not isinstance(reasoning_config, dict):
+                    reasoning_config = {}
+                if "effort" in reasoning_config:
+                    _logger.warning(
+                        "reasoning_effort overrides the existing reasoning.effort value"
+                    )
+                data["reasoning"] = {
+                    **reasoning_config,
+                    "effort": reasoning_effort,
+                }
+            else:
+                _logger.warning(
+                    "Model %s does not support reasoning_effort; omitting it.",
+                    use_model,
+                )
+
+        if verbosity is not None:
+            _validate_verbosity(verbosity)
+            text_config = data.get("text", {})
+            if not isinstance(text_config, dict):
+                text_config = {}
+            if "verbosity" in text_config:
+                _logger.warning("verbosity overrides the existing text.verbosity value")
+            data["text"] = {**text_config, "verbosity": verbosity}
 
         _logger.debug(
             f"Sending data to api:\n{json.dumps(data, indent=2, ensure_ascii=False)}"
@@ -363,6 +423,8 @@ class AskResponses:
         model: Optional[str] = None,
         temperature: float = 0,
         max_tokens: Optional[int] = None,
+        reasoning_effort: Optional[str] = None,
+        verbosity: Optional[str] = None,
     ) -> str:
         """
         Simplified interface for basic text generation.
@@ -383,6 +445,8 @@ class AskResponses:
             model=model,
             temperature=temperature,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
+            verbosity=verbosity,
         )
         return response.output_text
 
@@ -394,6 +458,8 @@ class AskResponses:
         model: Optional[str] = None,
         temperature: float = 0,
         max_tokens: Optional[int] = 600,
+        reasoning_effort: Optional[str] = None,
+        verbosity: Optional[str] = None,
     ) -> str:
         """
         Simplified interface for vision tasks.
@@ -425,6 +491,8 @@ class AskResponses:
             model=model,
             temperature=temperature,
             max_tokens=max_tokens,
+            reasoning_effort=reasoning_effort,
+            verbosity=verbosity,
         )
         return response.output_text
 
