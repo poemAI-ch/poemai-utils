@@ -30,9 +30,11 @@ The release tag helper requires a clean `main` checkout synchronized with
 `origin/main`. It validates the `X.Y.Z` version and rejects an existing local
 or remote tag.
 
-The GitHub Actions `main` run is the release candidate check: it runs the unit
-tests, builds the source and wheel distributions, and checks them with Twine
-without publishing anything.
+The `CI - Test and Build` GitHub Actions workflow on `main` is the release
+candidate check: it runs the unit tests, builds the source and wheel
+distributions, and checks them with Twine without publishing anything. The
+separate `Publish Tagged Release to PyPI` workflow is only triggered by a
+`v*` tag and contains the publishing job.
 
 The GitHub Actions workflow runs tests and builds on `main` and on `v*` tags.
 Only the tag path reaches the publish job. Before publishing, it requires the

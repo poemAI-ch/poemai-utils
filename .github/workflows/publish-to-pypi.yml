@@ -1,9 +1,7 @@
-name: Publish Python Package to PyPI
+name: Publish Tagged Release to PyPI
 
 on:
   push:
-    branches:
-      - main
     tags:
       - "v*"
 
@@ -16,7 +14,6 @@ concurrency:
 
 jobs:
   test:
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -39,16 +36,13 @@ jobs:
           python -m pip install boto3 python-dateutil pytest-asyncio numpy tiktoken flake8
 
       - name: Check for unused imports
-        run: |
-          flake8 --select=F401 --exclude="src/*/simple.py" src/
+        run: flake8 --select=F401 --exclude="src/*/simple.py" src/
 
       - name: Run unit tests
-        run: |
-          pytest tests/unit -v --tb=short
+        run: pytest tests/unit -v --tb=short
 
   build:
     needs: test
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
@@ -68,22 +62,16 @@ jobs:
         run: |
           set -euo pipefail
           version="$(tr -d '[:space:]' < VERSION.txt)"
+          tag_version="${GITHUB_REF_NAME#v}"
 
           [[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
             echo "VERSION.txt must contain X.Y.Z, found: $version"
             exit 1
           }
-
-          if [[ "$GITHUB_REF" == refs/tags/v* ]]; then
-            tag_version="${GITHUB_REF_NAME#v}"
-            [[ "$version" == "$tag_version" ]] || {
-              echo "Tag $GITHUB_REF_NAME does not match VERSION.txt ($version)."
-              exit 1
-            }
-          elif [[ "$GITHUB_REF" != refs/heads/main ]]; then
-            echo "Builds are only allowed from main or v* tags."
+          [[ "$version" == "$tag_version" ]] || {
+            echo "Tag $GITHUB_REF_NAME does not match VERSION.txt ($version)."
             exit 1
-          fi
+          }
 
           echo "version=$version" >> "$GITHUB_OUTPUT"
 
@@ -100,8 +88,8 @@ jobs:
       - name: Check distributions
         run: python -m twine check dist/*
 
-      - name: Upload distributions
-        uses: actions/upload-artifact@v4
+      - name: Upload tested distributions
+        uses: actions/upload-artifact@v7
         with:
           name: poemai-utils-${{ steps.version.outputs.version }}
           path: dist/*
@@ -122,7 +110,7 @@ jobs:
           python-version: "3.12"
 
       - name: Download tested distributions
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: poemai-utils-${{ needs.build.outputs.version }}
           path: dist
